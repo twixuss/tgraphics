@@ -134,7 +134,7 @@ union CubeTexturePaths {
 // position is bottom left
 using Viewport = aabb<v2s>;
 
-#define APIS(A) \
+#define TGRAPHICS_APIS(A) \
 A(void, clear, (RenderTarget *render_target, ClearFlags flags, v4f color, f32 depth), (render_target, flags, color, depth)) \
 A(void, present, (), ()) \
 A(void, draw, (u32 vertex_count, u32 start_vertex), (vertex_count, start_vertex)) \
@@ -178,11 +178,11 @@ A(void, enable_scissor, (), ()) \
 A(void, disable_scissor, (), ()) \
 
 #define A(ret, name, args, values) TGRAPHICS_API ret (*_##name) args;
-APIS(A)
+TGRAPHICS_APIS(A)
 #undef A
 
 #define A(ret, name, args, values) inline ret name args { return _##name values; }
-APIS(A)
+TGRAPHICS_APIS(A)
 #undef A
 
 TGRAPHICS_API RenderTarget *back_buffer;
@@ -310,11 +310,1391 @@ void set_shader_constants(TypedShaderConstants<T> const &constants, u32 slot) {
 	return _set_shader_constants(constants.constants, slot);
 }
 
-#ifndef T3D_IMPL
-#undef APIS
+#ifndef TGRAPHICS_IMPL
+#undef TGRAPHICS_APIS
 #endif
 
 bool init(GraphicsApi api, InitInfo init_info);
 void free();
 
 }
+
+#ifdef TGRAPHICS_IMPL
+
+tl::umm get_hash(tl::Span<tgraphics::ElementType> types);
+
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#include <tl/console.h>
+#include <tl/masked_block_list.h>
+#include <tl/hash_map.h>
+#include <tl/window.h>
+
+namespace tgraphics {
+
+#define A(ret, name, args, values) ret (*_##name) args;
+TGRAPHICS_APIS(A)
+#undef A
+
+RenderTarget *back_buffer;
+v2u min_texture_size;
+
+namespace d3d11 { bool init(InitInfo init_info); void free(); }
+namespace gl    { bool init(InitInfo init_info); void free(); }
+
+static bool init_api(GraphicsApi api, InitInfo init_info) {
+	if (!init_info.window) {
+		print(Print_error, "init_info.window is null\n");
+		return false;
+	}
+	switch (api) {
+		case GraphicsApi_d3d11: return d3d11::init(init_info);
+		case GraphicsApi_opengl: return gl::init(init_info);
+	}
+	return false;
+}
+
+static bool check_api() {
+	bool result = true;
+#define A(ret, name, args, values) if(!_##name){print("tgraphics::" #name " was not initialized.\n");result=false;}
+TGRAPHICS_APIS(A)
+#undef A
+	return result;
+}
+
+GraphicsApi current_api;
+
+bool init(GraphicsApi api, InitInfo init_info) {
+	return current_api = api, init_api(api, init_info) && check_api();
+}
+
+void free() {
+	switch (current_api) {
+		case GraphicsApi_d3d11: return d3d11::free();
+		case GraphicsApi_opengl: return gl::free();
+	}
+	current_api = {};
+}
+
+Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params) {
+	Pixels result;
+
+	auto file = read_entire_file(path);
+	if (!file.data) {
+		print(Print_error, "Failed to read file %.\n", path);
+		return {};
+	}
+
+	//if (starts_with(file, "#?RADIANCE"s)) {
+	//	auto c = file.data;
+	//	while (1) {
+	//		if (*c == '#' || *c == '\n' || starts_with(Span{c, 8}, "EXPOSURE"s) || starts_with(Span{c, 6}, "FORMAT"s)) {
+	//			while (*c != '\n') {
+	//				++c;
+	//			}
+	//			++c;
+	//			continue;
+	//		} else if (starts_with(Span{c, 3}, "+Y "s) || starts_with(Span{c, 3}, "-Y "s)) {
+	//			c += 3;
+	//			auto number_start = c;
+	//			while (*c != ' ' && *c != '\n') {
+	//				++c;
+	//			}
+	//			auto number_end = c;
+	//			++c;
+	//			if (auto number = parse_u64((Span<char>)Span(number_start, number_end))) {
+	//				result.size.y = number.value;
+	//			} else {
+	//				print(Print_error, "Failed to parse hdr height.");
+	//				return {};
+	//			}
+	//			continue;
+	//		} else if (starts_with(Span{c, 3}, "+X "s) || starts_with(Span{c, 3}, "-X "s)) {
+	//			c += 3;
+	//			auto number_start = c;
+	//			while (*c != ' ' && *c != '\n') {
+	//				++c;
+	//			}
+	//			auto number_end = c;
+	//			++c;
+	//			if (auto number = parse_u64((Span<char>)Span(number_start, number_end))) {
+	//				result.size.x = number.value;
+	//			} else {
+	//				print(Print_error, "Failed to parse hdr height.");
+	//				return {};
+	//			}
+	//			continue;
+	//		}
+	//		break;
+	//	}
+	//	if (*c++ != 0x02) { print(Print_error, "Failed to parse %.\n", path); }
+	//	if (*c++ != 0x02) { print(Print_error, "Failed to parse %.\n", path); }
+	//
+	//	u16 check_width = (u16)*c++ << 8;
+	//	check_width |= *c++;
+	//
+	//	if (result.size.x != check_width) {
+	//		print(Print_error, "Failed to parse %: check width failed.\n", path);
+	//	}
+	//
+	//	result.format = TextureFormat_rgb_f32;
+	//
+	//	List<u8> pixel_bytes;
+	//	pixel_bytes.reserve((umm)result.size.x * result.size.y * 12);
+	//	while (c != file.end()) {
+	//		if (*c & 0x80) {
+	//			// run
+	//			u32 run_count = *c & 0x80;
+	//			while (run_count--) {
+	//				pixel_bytes.add(c[1]);
+	//				pixel_bytes.add(c[2]);
+	//				pixel_bytes.add(c[3]);
+	//			}
+	//			c += 5;
+	//		} else {
+	//			// non-run
+	//			pixel_bytes.add(c[0]);
+	//			pixel_bytes.add(c[1]);
+	//			pixel_bytes.add(c[2]);
+	//			c += 5;
+	//		}
+	//	}
+	//
+	//	int x = 1;
+	//
+
+	stbi_set_flip_vertically_on_load(params.flip_y);
+
+	int width, height;
+	if (stbi_is_hdr_from_memory(file.data, file.size)) {
+		result.data = stbi_loadf_from_memory(file.data, file.size, &width, &height, 0, 4);
+		result.format = TextureFormat_rgba_f32;
+	} else {
+		result.data = stbi_load_from_memory(file.data, file.size, &width, &height, 0, 4);
+		result.format = TextureFormat_rgba_u8n;
+	}
+	if (!result.data) {
+		print(Print_error, "Failed to parse texture from %. Reason: %.\n", path, stbi_failure_reason());
+		return {};
+	}
+	result.size = {(u32)width, (u32)height};
+	result.free = stbi_image_free;
+	return result;
+}
+
+}
+
+#include <tl/opengl.h>
+
+namespace tgraphics::gl {
+
+using namespace tl::gl;
+
+struct ShaderImpl : Shader {
+	GLuint program;
+};
+
+struct ShaderConstantsImpl : ShaderConstants {
+	GLuint uniform_buffer;
+	u32 values_size;
+};
+
+struct VertexBufferImpl : VertexBuffer {
+	GLuint buffer;
+	GLuint array;
+};
+
+struct IndexBufferImpl : IndexBuffer {
+	GLuint buffer;
+	GLuint type;
+	u32 count;
+};
+
+struct TextureImpl : Texture {
+	GLuint texture;
+	GLuint sampler;
+	GLuint format;
+	GLuint internal_format;
+	GLuint type;
+	GLuint target;
+	u32 bytes_per_texel;
+};
+
+struct RenderTargetImpl : RenderTarget {
+	GLuint frame_buffer;
+};
+
+struct ComputeShaderImpl : ComputeShader {
+	GLuint program;
+};
+struct ComputeBufferImpl : ComputeBuffer {
+	GLuint buffer;
+	u32 size;
+};
+
+struct SamplerKey {
+	TextureFiltering filtering;
+	Comparison comparison;
+	bool operator==(SamplerKey const &that) const {
+		return filtering == that.filtering && comparison == that.comparison;
+	}
+};
+
+umm get_hash(SamplerKey key) {
+	return key.filtering ^ key.comparison;
+}
+
+struct State {
+	MaskedBlockList<ShaderImpl, 256> shaders;
+	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	MaskedBlockList<RenderTargetImpl, 256> render_targets;
+	MaskedBlockList<TextureImpl, 256> textures;
+	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
+	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	IndexBufferImpl *current_index_buffer;
+	RenderTargetImpl back_buffer;
+	TextureImpl back_buffer_color;
+	TextureImpl back_buffer_depth;
+	RenderTargetImpl *currently_bound_render_target;
+	StaticHashMap<SamplerKey, GLuint, 256> samplers;
+	v2u window_size;
+	List<TextureImpl *> window_sized_textures;
+	RasterizerState rasterizer;
+	BlendFunction blend_function;
+	Blend blend_source;
+	Blend blend_destination;
+	GLuint topology = GL_TRIANGLES;
+	bool scissor_enabled;
+};
+static State state;
+
+u32 get_element_scalar_count(ElementType element) {
+	switch (element) {
+		case Element_f32x1: return 1;
+		case Element_f32x2:	return 2;
+		case Element_f32x3:	return 3;
+		case Element_f32x4:	return 4;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+u32 get_element_size(ElementType element) {
+	switch (element) {
+		case Element_f32x1: return 4;
+		case Element_f32x2:	return 8;
+		case Element_f32x3:	return 12;
+		case Element_f32x4:	return 16;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+u32 get_element_type(ElementType element) {
+	switch (element) {
+		case Element_f32x1: return GL_FLOAT;
+		case Element_f32x2:	return GL_FLOAT;
+		case Element_f32x3:	return GL_FLOAT;
+		case Element_f32x4:	return GL_FLOAT;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+u32 get_index_type_from_size(u32 size) {
+	switch (size) {
+		case 2: return GL_UNSIGNED_SHORT;
+		case 4: return GL_UNSIGNED_INT;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_min_filter(TextureFiltering filter) {
+	switch (filter) {
+		case TextureFiltering_nearest:        return GL_NEAREST;
+		case TextureFiltering_linear:         return GL_LINEAR;
+		case TextureFiltering_linear_mipmap:  return GL_LINEAR_MIPMAP_LINEAR;
+	}
+	invalid_code_path();
+	return 0;
+}
+GLuint get_mag_filter(TextureFiltering filter) {
+	switch (filter) {
+		case TextureFiltering_nearest:        return GL_NEAREST;
+		case TextureFiltering_linear:         return GL_LINEAR;
+		case TextureFiltering_linear_mipmap:  return GL_LINEAR;
+	}
+	invalid_code_path();
+	return 0;
+}
+GLuint get_func(Comparison comparison) {
+	switch (comparison) {
+		case Comparison_none:   return GL_NONE;
+		case Comparison_always: return GL_ALWAYS;
+		case Comparison_equal:  return GL_EQUAL;
+		case Comparison_less:   return GL_LESS;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_format(TextureFormat format) {
+	switch (format) {
+		case TextureFormat_depth:    return GL_DEPTH_COMPONENT;
+		case TextureFormat_r_f32:    return GL_RED;
+		case TextureFormat_rgb_u8n:  return GL_RGB;
+		case TextureFormat_rgb_f16:  return GL_RGB;
+		case TextureFormat_rgb_f32:  return GL_RGB;
+		case TextureFormat_rgba_u8n: return GL_RGBA;
+		case TextureFormat_rgba_f16: return GL_RGBA;
+		case TextureFormat_rgba_f32: return GL_RGBA;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_internal_format(TextureFormat format) {
+	switch (format) {
+		case TextureFormat_depth:    return GL_DEPTH_COMPONENT;
+		case TextureFormat_r_f32:    return GL_R32F;
+		case TextureFormat_rgb_u8n:  return GL_RGB8;
+		case TextureFormat_rgb_f16:  return GL_RGB16F;
+		case TextureFormat_rgb_f32:  return GL_RGB32F;
+		case TextureFormat_rgba_u8n: return GL_RGBA8;
+		case TextureFormat_rgba_f16: return GL_RGBA16F;
+		case TextureFormat_rgba_f32: return GL_RGBA32F;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_type(TextureFormat format) {
+	switch (format) {
+		case TextureFormat_depth:    return GL_FLOAT;
+		case TextureFormat_r_f32:    return GL_FLOAT;
+		case TextureFormat_rgb_u8n:  return GL_UNSIGNED_BYTE;
+		case TextureFormat_rgb_f16:  return GL_FLOAT;
+		case TextureFormat_rgb_f32:  return GL_FLOAT;
+		case TextureFormat_rgba_u8n: return GL_UNSIGNED_BYTE;
+		case TextureFormat_rgba_f16: return GL_FLOAT;
+		case TextureFormat_rgba_f32: return GL_FLOAT;
+	}
+	invalid_code_path();
+	return 0;
+}
+u32 get_bytes_per_texel(TextureFormat format) {
+	switch (format) {
+		case TextureFormat_depth:    return 4;
+		case TextureFormat_r_f32:    return 4;
+		case TextureFormat_rgb_u8n:  return 3;
+		case TextureFormat_rgb_f16:  return 6;
+		case TextureFormat_rgb_f32:  return 12;
+		case TextureFormat_rgba_u8n: return 4;
+		case TextureFormat_rgba_f16: return 8;
+		case TextureFormat_rgba_f32: return 16;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_blend(Blend blend) {
+	switch (blend) {
+		case Blend_one:                       return GL_ONE;
+		case Blend_source_alpha:              return GL_SRC_ALPHA;
+		case Blend_one_minus_source_alpha:    return GL_ONE_MINUS_SRC_ALPHA;
+		case Blend_secondary_color:           return GL_SRC1_COLOR;
+		case Blend_one_minus_secondary_color: return GL_ONE_MINUS_SRC1_COLOR;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_equation(BlendFunction function) {
+	switch (function) {
+		case BlendFunction_add: return GL_FUNC_ADD;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+GLuint get_topology(Topology topology) {
+	switch (topology) {
+		case Topology_triangle_list: return GL_TRIANGLES;
+		case Topology_line_list:     return GL_LINES;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+void bind_render_target(RenderTargetImpl &render_target) {
+	if (&render_target == state.currently_bound_render_target)
+		return;
+
+	state.currently_bound_render_target = &render_target;
+	glBindFramebuffer(GL_FRAMEBUFFER, render_target.frame_buffer);
+}
+
+GLuint get_sampler(TextureFiltering filtering, Comparison comparison) {
+	if (filtering == TextureFiltering_none)
+		return 0;
+
+	auto &result = state.samplers.get_or_insert({filtering, comparison});
+	if (!result) {
+		glGenSamplers(1, &result);
+		if (comparison != Comparison_none) {
+			glSamplerParameteri(result, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+			auto func = get_func(comparison);
+			glSamplerParameteri(result, GL_TEXTURE_COMPARE_FUNC, func);
+		}
+
+		glSamplerParameteri(result, GL_TEXTURE_MIN_FILTER, get_min_filter(filtering));
+		glSamplerParameteri(result, GL_TEXTURE_MAG_FILTER, get_mag_filter(filtering));
+		glSamplerParameteri(result, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glSamplerParameteri(result, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	}
+	return result;
+}
+
+void resize_texture_gl(Texture *_texture, u32 width, u32 height) {
+	auto &texture = *(TextureImpl *)_texture;
+	texture.size = {width, height};
+	glBindTexture(texture.target, texture.texture);
+	glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, NULL);
+	glBindTexture(texture.target, 0);
+}
+
+bool init(InitInfo init_info) {
+
+	if (!init_opengl(init_info.window, init_info.debug)) {
+		return false;
+	}
+
+	new (&state) State();
+
+	state.window_size = get_client_size(init_info.window);
+
+	back_buffer = &state.back_buffer;
+	state.back_buffer.color = &state.back_buffer_color;
+	state.back_buffer.depth = &state.back_buffer_depth;
+
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
+
+	//glEnable(GL_DEPTH_TEST);
+	//glDepthFunc(GL_LESS);
+	
+	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
+		assert(_render_target);
+		auto &render_target = *(RenderTargetImpl *)_render_target;
+
+		auto previously_bound_render_target = state.currently_bound_render_target;
+		bind_render_target(render_target);
+
+		GLbitfield mask = 0;
+		if (flags & ClearFlags_color) { mask |= GL_COLOR_BUFFER_BIT; glClearColor(color.x, color.y, color.z, color.w); }
+		if (flags & ClearFlags_depth) { mask |= GL_DEPTH_BUFFER_BIT; glClearDepth(depth); }
+		glClear(mask);
+
+		if (previously_bound_render_target) {
+			bind_render_target(*previously_bound_render_target);
+		}
+	};
+	_present = []() {
+		gl::present();
+	};
+	_draw = [](u32 vertex_count, u32 start_vertex) {
+		assert(vertex_count, "tgraphics::draw called with 0 vertices");
+		glDrawArrays(state.topology, start_vertex, vertex_count);
+	};
+	_draw_indexed = [](u32 index_count) {
+		assert(state.current_index_buffer, "Index buffer was not bound");
+		glDrawElements(state.topology, index_count, state.current_index_buffer->type, 0);
+	};
+	_set_viewport = [](Viewport viewport) {
+		assert(viewport.max.x - viewport.min.x > 0);
+		assert(viewport.max.y - viewport.min.y > 0);
+		glViewport(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
+	};
+	_resize_render_targets = [](u32 width, u32 height) {
+		for (auto texture : state.window_sized_textures) {
+			if (texture) {
+				resize_texture_gl(texture, width, height);
+			}
+		}
+		state.window_size = state.back_buffer_color.size = state.back_buffer_depth.size = {width, height};
+	};
+	_set_shader = [](Shader *_shader) {
+		assert(_shader);
+		auto &shader = *(ShaderImpl *)_shader;
+		glUseProgram(shader.program);
+	};
+	_set_shader_constants = [](ShaderConstants *_constants, u32 slot) {
+		assert(_constants);
+		auto &constants = *(ShaderConstantsImpl *)_constants;
+		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
+		glBindBufferBase(GL_UNIFORM_BUFFER, slot, constants.uniform_buffer);
+	};
+	_update_shader_constants = [](ShaderConstants *_constants, ShaderValueLocation dest, void const *source) {
+		assert(_constants);
+		auto &constants = *(ShaderConstantsImpl *)_constants;
+		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
+		glBufferSubData(GL_UNIFORM_BUFFER, dest.start, dest.size, source);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	};
+	_create_shader = [](Span<utf8> source) -> Shader * {
+		auto &shader = state.shaders.add();
+		auto vertex   = tl::gl::create_shader(GL_VERTEX_SHADER, 430, true, (Span<char>)source);
+		auto fragment = tl::gl::create_shader(GL_FRAGMENT_SHADER, 430, true, (Span<char>)source);
+		assert(vertex);
+		assert(fragment);
+		shader.program = create_program({
+			.vertex = vertex,
+			.fragment = fragment,
+		});
+		assert(shader.program);
+		return &shader;
+	};
+	_create_shader_constants = [](umm size) -> ShaderConstants * {
+		auto &constants = state.shader_constants.add();
+		glGenBuffers(1, &constants.uniform_buffer);
+		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
+		glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_STATIC_DRAW);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+		constants.values_size = size;
+		return &constants;
+	};
+	_calculate_perspective_matrices = [](v3f position, v3f rotation, f32 aspect_ratio, f32 fov, f32 near_plane, f32 far_plane) {
+		CameraMatrices result;
+		result.mvp = m4::perspective_right_handed(aspect_ratio, fov, near_plane, far_plane)
+				   * m4::rotation_r_yxz(-rotation)
+			       * m4::translation(-position);
+		return result;
+	};
+	_create_vertex_buffer = [](Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
+		VertexBufferImpl &result = state.vertex_buffers.add();
+		glGenBuffers(1, &result.buffer);
+		glGenVertexArrays(1, &result.array);
+
+		glBindVertexArray(result.array);
+
+		glBindBuffer(GL_ARRAY_BUFFER, result.buffer);
+		glBufferData(GL_ARRAY_BUFFER, buffer.size, buffer.data, GL_STATIC_DRAW);
+
+		u32 stride = 0;
+		for (auto &element : vertex_descriptor) {
+			stride += get_element_size(element);
+		}
+
+		u32 offset = 0;
+		for (u32 element_index = 0; element_index < vertex_descriptor.size; ++element_index) {
+			auto &element = vertex_descriptor[element_index];
+			glVertexAttribPointer(element_index, get_element_scalar_count(element), get_element_type(element), false, stride, (void const *)offset);
+			glEnableVertexAttribArray(element_index);
+			offset += get_element_size(element);
+		}
+
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		return &result;
+	};
+
+	_set_vertex_buffer = [](VertexBuffer *_buffer) {
+		auto buffer = (VertexBufferImpl *)_buffer;
+		glBindVertexArray(buffer ? buffer->array : 0);
+	};
+
+	_create_index_buffer = [](Span<u8> buffer, u32 index_size) -> IndexBuffer * {
+		IndexBufferImpl &result = state.index_buffers.add();
+		result.type = get_index_type_from_size(index_size);
+		result.count = buffer.size / index_size;
+
+		glGenBuffers(1, &result.buffer);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.buffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, buffer.size, buffer.data, GL_STATIC_DRAW);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+		return &result;
+	};
+
+	_set_index_buffer = [](IndexBuffer *_buffer) {
+		auto buffer = (IndexBufferImpl *)_buffer;
+		state.current_index_buffer = buffer;
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer ? buffer->buffer : 0);
+	};
+
+	_set_vsync = [](bool enable) {
+		wglSwapIntervalEXT(enable);
+	};
+	_set_render_target = [](RenderTarget *_render_target) {
+		assert(_render_target);
+		auto &render_target = *(RenderTargetImpl *)_render_target;
+		bind_render_target(render_target);
+	};
+	_create_render_target = [](Texture *_color, Texture *_depth) -> RenderTarget * {
+		assert(_color || _depth);
+		auto color = (TextureImpl *)_color;
+		auto depth = (TextureImpl *)_depth;
+
+		auto &result = state.render_targets.add();
+
+		result.color = color;
+		result.depth = depth;
+
+		glGenFramebuffers(1, &result.frame_buffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, result.frame_buffer);
+		if (depth) {
+			if (!color) {
+				glDrawBuffer(GL_NONE);
+				glReadBuffer(GL_NONE);
+			}
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth->texture, 0);
+		}
+		if (color) {
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color->texture, 0);
+		}
+
+		switch(glCheckFramebufferStatus(GL_FRAMEBUFFER)) {
+#define C(x) case x: print(#x "\n"); invalid_code_path(); break;
+			C(GL_FRAMEBUFFER_UNDEFINED)
+			C(GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT)
+			C(GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT)
+			C(GL_FRAMEBUFFER_UNSUPPORTED)
+			C(GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE)
+#undef C
+			case GL_FRAMEBUFFER_COMPLETE: break;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		return &result;
+	};
+	_set_texture = [](Texture *_texture, u32 slot) {
+		auto &texture = *(TextureImpl *)_texture;
+		glActiveTexture(GL_TEXTURE0 + slot);
+		if (_texture) {
+			glBindTexture(texture.target, texture.texture);
+			glBindSampler(slot, texture.sampler);
+		} else {
+			glBindTexture(texture.target, 0);
+			glBindSampler(slot, 0);
+		}
+	};
+	_create_texture = [](CreateTextureFlags flags, u32 width, u32 height, void *data, TextureFormat format, TextureFiltering filtering, Comparison comparison) -> Texture * {
+		auto &result = state.textures.add();
+
+		result.size = {width, height};
+
+		if (flags & CreateTexture_resize_with_window) {
+			state.window_sized_textures.add(&result);
+			width  = state.window_size.x;
+			height = state.window_size.y;
+		}
+
+		result.internal_format = get_internal_format(format);
+		result.format          = get_format(format);
+		result.type            = get_type(format);
+		result.bytes_per_texel = get_bytes_per_texel(format);
+		result.target = GL_TEXTURE_2D;
+
+		glGenTextures(1, &result.texture);
+		glBindTexture(GL_TEXTURE_2D, result.texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, result.internal_format, width, height, 0, result.format, result.type, data);
+		glTexParameteri(GL_TEXTURE_2D,  GL_TEXTURE_MAX_LEVEL, 0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		result.sampler = get_sampler(filtering, comparison);
+
+		return &result;
+	};
+	_set_rasterizer = [](RasterizerState rasterizer) {
+		if (rasterizer.depth_test != state.rasterizer.depth_test) {
+			if (rasterizer.depth_test) {
+				glEnable(GL_DEPTH_TEST);
+			} else {
+				glDisable(GL_DEPTH_TEST);
+			}
+		}
+
+		if (rasterizer.depth_test) {
+			if (rasterizer.depth_func != state.rasterizer.depth_func) {
+				glDepthFunc(get_func((Comparison)rasterizer.depth_func));
+			}
+		}
+
+		//if (rasterizer.depth_write != state.rasterizer.depth_write) {
+		//	glDepthMask(rasterizer.depth_write);
+		//}
+
+		state.rasterizer = rasterizer;
+	};
+	_get_rasterizer = []() -> RasterizerState {
+		return state.rasterizer;
+	};
+	_create_compute_shader = [](Span<utf8> source) -> ComputeShader * {
+		auto &result = state.compute_shaders.add();
+		result.program = create_program({
+			.compute = tl::gl::create_shader(GL_COMPUTE_SHADER, 430, true, (Span<char>)source),
+		});
+		return &result;
+	};
+	_set_compute_shader = [](ComputeShader *_shader) {
+		assert(_shader);
+		auto &shader = *(ComputeShaderImpl *)_shader;
+		glUseProgram(shader.program);
+	};
+	_dispatch_compute_shader = [](u32 x, u32 y, u32 z) {
+		glDispatchCompute(x, y, z);
+	};
+	_resize_texture = resize_texture_gl;
+	_create_compute_buffer = [](u32 size) -> ComputeBuffer * {
+		auto &result = state.compute_buffers.add();
+		result.size = size;
+		glGenBuffers(1, &result.buffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, result.buffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, size, 0, GL_STATIC_COPY);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, result.buffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+		return &result;
+	};
+	_set_compute_buffer =  [](ComputeBuffer *_buffer, u32 slot) {
+		assert(_buffer);
+		auto &buffer = *(ComputeBufferImpl *)_buffer;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer.buffer);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer.buffer);
+	};
+	_read_compute_buffer = [](ComputeBuffer *_buffer, void *data) {
+		assert(_buffer);
+		auto &buffer = *(ComputeBufferImpl *)_buffer;
+
+		//glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer.buffer);
+		void* resultData = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, buffer.size, GL_MAP_READ_BIT);
+		memcpy(data, resultData, buffer.size);
+		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	};
+	_set_compute_texture = [](Texture *_texture, u32 slot) {
+		assert(_texture);
+		auto &texture = *(TextureImpl *)_texture;
+		glBindImageTexture(slot, texture.texture, 0, GL_FALSE, 0, GL_READ_ONLY, texture.internal_format);
+	};
+	_read_texture = [](Texture *_texture, Span<u8> data) {
+		assert(_texture);
+		auto &texture = *(TextureImpl *)_texture;
+		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.size, data.data);
+	};
+	_set_blend = [](BlendFunction function, Blend source, Blend destination) {
+		if (function != state.blend_function) {
+			state.blend_function = function;
+
+			if (function == BlendFunction_disable) {
+				glDisable(GL_BLEND);
+			} else {
+				glEnable(GL_BLEND);
+				glBlendEquation(get_equation(function));
+			}
+		}
+		if (source != state.blend_source || destination != state.blend_destination) {
+			state.blend_source = source;
+			state.blend_destination = destination;
+			if (function != BlendFunction_disable) {
+				glBlendFunc(get_blend(source), get_blend(destination));
+			}
+		}
+	};
+	_create_cube_texture = [](CreateTextureFlags flags, u32 width, u32 height, void *data[6], TextureFormat format, TextureFiltering filtering, Comparison comparison) -> Texture * {
+		auto &result = state.textures.add();
+
+		result.size = {width, height};
+
+		if (flags & CreateTexture_resize_with_window) {
+			state.window_sized_textures.add(&result);
+			width  = state.window_size.x;
+			height = state.window_size.y;
+		}
+
+		result.internal_format = get_internal_format(format);
+		result.format          = get_format(format);
+		result.type            = get_type(format);
+		result.bytes_per_texel = get_bytes_per_texel(format);
+		result.target          = GL_TEXTURE_CUBE_MAP;
+
+		glGenTextures(1, &result.texture);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, result.texture);
+		for (u32 i = 0; i < 6; ++i) {
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, result.internal_format, width, height, 0, result.format, result.type, data[i]);
+		}
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+		result.sampler = get_sampler(filtering, comparison);
+
+		return &result;
+	};
+	_set_topology = [](Topology topology) {
+		state.topology = get_topology(topology);
+	};
+	_update_vertex_buffer = [](VertexBuffer *_buffer, Span<u8> data) {
+		auto &buffer = *(VertexBufferImpl *)_buffer;
+		glBindBuffer(GL_ARRAY_BUFFER, buffer.buffer);
+		glBufferData(GL_ARRAY_BUFFER, data.size, data.data, GL_STATIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	};
+	_update_texture = [](Texture *_texture, u32 width, u32 height, void *data) {
+		auto &texture = *(TextureImpl *)_texture;
+		glBindTexture(texture.target, texture.texture);
+		glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, data);
+		glBindTexture(texture.target, 0);
+	};
+	_generate_mipmaps = [](Texture *_texture) {
+		assert(_texture);
+		auto &texture = *(TextureImpl *)_texture;
+		glBindTexture(GL_TEXTURE_2D, texture.texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	};
+	_set_scissor = [](Viewport viewport) {
+		assert(viewport.max.x - viewport.min.x > 0);
+		assert(viewport.max.y - viewport.min.y > 0);
+		if (!state.scissor_enabled) {
+			print(Print_warning, "tgraphics::set_scissor was called when scessor test is not enabled\n");
+		}
+		glScissor(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
+	};
+	_enable_scissor = [] {
+		if (!state.scissor_enabled) {
+			state.scissor_enabled = true;
+			glEnable(GL_SCISSOR_TEST);
+		}
+	};
+	_disable_scissor = [] {
+		if (state.scissor_enabled) {
+			state.scissor_enabled = false;
+			glDisable(GL_SCISSOR_TEST);
+		}
+	};
+	return true;
+}
+
+void free() {
+	/*
+	MaskedBlockList<ShaderImpl, 256> shaders;
+	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	MaskedBlockList<RenderTargetImpl, 256> render_targets;
+	MaskedBlockList<TextureImpl, 256> textures;
+	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
+	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	IndexBufferImpl *current_index_buffer;
+	RenderTargetImpl back_buffer;
+	TextureImpl back_buffer_color;
+	TextureImpl back_buffer_depth;
+	RenderTargetImpl *currently_bound_render_target;
+	StaticHashMap<SamplerKey, GLuint, 256> samplers;
+	v2u window_size;
+	List<TextureImpl *> window_sized_textures;
+	RasterizerState rasterizer;
+	BlendFunction blend_function;
+	Blend blend_source;
+	Blend blend_destination;
+	*/
+	free(state.shaders);
+	free(state.vertex_buffers);
+	free(state.index_buffers);
+	free(state.render_targets);
+	free(state.textures);
+	free(state.shader_constants);
+	free(state.compute_shaders);
+	free(state.compute_buffers);
+	free(state.samplers);
+	free(state.window_sized_textures);
+}
+
+}
+
+tl::umm get_hash(tl::Span<tgraphics::ElementType> types) {
+	tl::umm hash = 0x13579BDF2468ACE;
+	for (auto &type : types) {
+		hash = tl::rotate_left(hash, 1) | type;
+	}
+	return hash;
+}
+
+
+#include <d3d11.h>
+#include <dxgi.h>
+#include <d3dcompiler.h>
+
+#pragma comment(lib, "d3d11")
+#pragma comment(lib, "dxgi")
+#pragma comment(lib, "d3dcompiler")
+
+namespace tgraphics::d3d11 {
+
+template <class T, class U>
+T *QueryInterface(U *u) {
+	T *t = 0;
+	u->QueryInterface(&t);
+	return t;
+}
+
+struct ShaderImpl : Shader {
+	ID3D11VertexShader *vertex_shader = 0;
+	ID3D11PixelShader *pixel_shader = 0;
+	ID3D11Buffer *constant_buffer = 0;
+	void *constant_buffer_data = 0;
+};
+
+struct InputLayout {
+	ID3D11InputLayout *layout = 0;
+	u32 stride = 0;
+};
+
+struct VertexBufferImpl : VertexBuffer {
+	ID3D11Buffer *buffer = 0;
+	InputLayout *layout = 0;
+};
+
+struct IndexBufferImpl : IndexBuffer {
+	ID3D11Buffer *buffer = 0;
+	DXGI_FORMAT format = {};
+	u32 count = 0;
+};
+
+struct RenderTargetImpl : RenderTarget {
+	ID3D11Texture2D *color_texture;
+	ID3D11Texture2D *depth_texture;
+	ID3D11RenderTargetView *color_target = 0;
+	ID3D11DepthStencilView *depth_target = 0;
+};
+
+struct State {
+	ID3D11Device *device = 0;
+	ID3D11DeviceContext *immediate_context = 0;
+	RenderTargetImpl back_buffer;
+	IDXGISwapChain *swap_chain = 0;
+	UINT sync_interval = 1;
+	MaskedBlockList<ShaderImpl, 256> shaders;
+	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	MaskedBlockList<RenderTargetImpl, 256> render_targets;
+	LinearSet<RenderTargetImpl *> render_targets_resized_with_window;
+	StaticHashMap<Span<ElementType>, InputLayout, 256> input_layouts;
+};
+
+static State *state;
+
+bool create_back_buffer(u32 width, u32 height) {
+	ID3D11Texture2D *back_buffer_texture = 0;
+	if (FAILED(state->swap_chain->GetBuffer(0, IID_PPV_ARGS(&back_buffer_texture)))) {
+		return false;
+	}
+
+	if (FAILED(state->device->CreateRenderTargetView(back_buffer_texture, 0, &state->back_buffer.color_target))) {
+		return false;
+	}
+	back_buffer_texture->Release();
+
+	{
+		auto format = DXGI_FORMAT_D32_FLOAT;
+		ID3D11Texture2D *depth_texture = 0;
+		{
+			D3D11_TEXTURE2D_DESC desc = {
+				.Width = width,
+				.Height = height,
+				.MipLevels = 1,
+				.ArraySize = 1,
+				.Format = format,
+				.SampleDesc = {1, 0},
+				.Usage = D3D11_USAGE_DEFAULT,
+				.BindFlags = D3D11_BIND_DEPTH_STENCIL,
+			};
+			assert(SUCCEEDED(state->device->CreateTexture2D(&desc, 0, &depth_texture)));
+		}
+
+		D3D11_DEPTH_STENCIL_VIEW_DESC desc = {
+			.Format = format,
+			.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D,
+		};
+		assert(SUCCEEDED(state->device->CreateDepthStencilView(depth_texture, &desc, &state->back_buffer.depth_target)));
+	}
+
+	state->immediate_context->OMSetRenderTargets(1, &state->back_buffer.color_target, state->back_buffer.depth_target);
+	return true;
+}
+
+DXGI_FORMAT get_element_format(ElementType type) {
+	switch (type) {
+		case Element_f32x1: return DXGI_FORMAT_R32_FLOAT;
+		case Element_f32x2: return DXGI_FORMAT_R32G32_FLOAT;
+		case Element_f32x3: return DXGI_FORMAT_R32G32B32_FLOAT;
+		case Element_f32x4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+	}
+	invalid_code_path();
+	return DXGI_FORMAT_UNKNOWN;
+}
+
+u32 get_element_size(ElementType type) {
+	switch (type) {
+		case Element_f32x1: return 4;
+		case Element_f32x2: return 8;
+		case Element_f32x3: return 12;
+		case Element_f32x4: return 16;
+	}
+	invalid_code_path();
+	return 0;
+}
+
+DXGI_FORMAT get_index_format_from_size(u32 size) {
+	switch (size) {
+		case 2: return DXGI_FORMAT_R16_UINT;
+		case 4: return DXGI_FORMAT_R32_UINT;
+	}
+	invalid_code_path();
+	return DXGI_FORMAT_UNKNOWN;
+}
+
+
+char const *get_hlsl_type(ElementType type) {
+	switch (type) {
+		case Element_f32x1: return "float";
+		case Element_f32x2: return "float2";
+		case Element_f32x3: return "float3";
+		case Element_f32x4: return "float4";
+	}
+	invalid_code_path();
+	return 0;
+}
+
+ID3DBlob *compile_shader(Span<utf8> source, char const *name, char const *entry, char const *profile) {
+	ID3DBlob *bytecode = 0;
+	ID3DBlob *messages = 0;
+	D3DCompile(source.data, source.size, name, 0, 0, entry, profile, 0, 0, &bytecode, &messages);
+	if (messages) {
+		print(Span((char *)messages->GetBufferPointer(), messages->GetBufferSize()));
+		messages->Release();
+		messages = 0;
+	}
+	return bytecode;
+}
+
+InputLayout *get_input_layout(Span<ElementType> vertex_descriptor) {
+	auto &result = state->input_layouts.get_or_insert(vertex_descriptor);
+
+	if (!result.layout) {
+		List<D3D11_INPUT_ELEMENT_DESC> element_descs;
+		element_descs.allocator = temporary_allocator;
+
+		StringBuilder shader_builder;
+		shader_builder.allocator = temporary_allocator;
+		append(shader_builder, "struct Input{");
+
+		for (u32 element_index = 0; element_index < vertex_descriptor.size; ++element_index) {
+			auto &type = vertex_descriptor[element_index];
+			auto semantic = (char)('A' + element_index);
+			D3D11_INPUT_ELEMENT_DESC element = {
+				.SemanticName = tformat("%%", semantic, '\0').data,
+				.Format = get_element_format(type),
+				.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
+				.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
+			};
+			element_descs.add(element);
+			result.stride += get_element_size(type);
+			append_format(shader_builder, "% field%:%;", get_hlsl_type(type), element_index, semantic);
+		}
+		append(shader_builder, "};float4 main(in Input i):SV_Position{return 0;}");
+
+		ID3DBlob *vertex_shader_bytecode = compile_shader((List<utf8>)to_string(shader_builder), "input_layout", "main", "vs_5_0");
+
+		assert(SUCCEEDED(state->device->CreateInputLayout(element_descs.data, vertex_descriptor.size, vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), &result.layout)));
+	}
+
+	return &result;
+}
+
+DXGI_FORMAT get_format(TextureFormat format) {
+	switch (format) {
+		case tgraphics::TextureFormat_r_f32: return DXGI_FORMAT_R32_FLOAT;
+	}
+	invalid_code_path();
+	return DXGI_FORMAT_UNKNOWN;
+}
+
+bool init(InitInfo init_info) {
+	state = current_allocator.allocate<State>();
+
+	IDXGIFactory *factory = 0;
+	if (FAILED(CreateDXGIFactory(IID_PPV_ARGS(&factory)))) {
+		return false;
+	}
+	defer {
+		factory->Release();
+	};
+
+	IDXGIAdapter *adapter = 0;
+	for (UINT adapter_index = 0; SUCCEEDED(factory->EnumAdapters(adapter_index, &adapter)); ++adapter_index) {
+		if (auto adapter1 = QueryInterface<IDXGIAdapter1>(adapter)) {
+			DXGI_ADAPTER_DESC1 desc;
+			if (FAILED(adapter1->GetDesc1(&desc))) {
+				continue;
+			}
+
+			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+				continue;
+			} else {
+				break;
+			}
+		}
+	}
+
+	if (!adapter) {
+		return false;
+	}
+
+	if (FAILED(D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, 0, init_info.debug ? D3D11_CREATE_DEVICE_DEBUG : 0, 0, 0, D3D11_SDK_VERSION, &state->device, 0, &state->immediate_context))) {
+		return false;
+	}
+
+	auto client_size = get_client_size(init_info.window);
+
+	DXGI_SWAP_CHAIN_DESC desc = {
+		.BufferDesc = {
+			.Width = client_size.x,
+			.Height = client_size.y,
+			.RefreshRate = {
+				.Numerator = 1,
+				.Denominator = 60,
+			},
+			.Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+		},
+		.SampleDesc = {.Count = 1, .Quality = 0},
+		.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
+		.BufferCount = 1,
+		.OutputWindow = (HWND)init_info.window,
+		.Windowed = true,
+	};
+
+	if (FAILED(factory->CreateSwapChain(state->device, &desc, &state->swap_chain))) {
+		return false;
+	}
+
+	if (!create_back_buffer(client_size.x, client_size.y)) {
+		return false;
+	}
+
+	state->immediate_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	ID3D11RasterizerState *rasterizer_state = 0;
+	{
+		D3D11_RASTERIZER_DESC desc = {
+			.FillMode = D3D11_FILL_SOLID,
+			.CullMode = D3D11_CULL_FRONT,
+			.AntialiasedLineEnable = false,
+		};
+		if (FAILED(state->device->CreateRasterizerState(&desc, &rasterizer_state))) {
+			return false;
+		}
+	}
+	state->immediate_context->RSSetState(rasterizer_state);
+
+	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
+		auto render_target = (RenderTargetImpl *)_render_target;
+		if (!render_target) {
+			render_target = &state->back_buffer;
+		}
+		if (flags & ClearFlags_color) state->immediate_context->ClearRenderTargetView(render_target->color_target, color.s);
+		if (flags & ClearFlags_depth) state->immediate_context->ClearDepthStencilView(render_target->depth_target, D3D11_CLEAR_DEPTH, depth, 0);
+	};
+	_present = []() {
+		assert(SUCCEEDED(state->swap_chain->Present(state->sync_interval, 0)));
+	};
+	_draw = [](u32 vertex_count, u32 start_vertex) {
+		state->immediate_context->Draw(vertex_count, start_vertex);
+	};
+	_draw_indexed = [](u32 index_count) {
+		state->immediate_context->DrawIndexed(index_count, 0, 0);
+	};
+	//_set_viewport = [](u32 x, u32 y, u32 w, u32 h) {
+	//	D3D11_VIEWPORT v = {
+	//		.TopLeftX = (FLOAT)x,
+	//		.TopLeftY = (FLOAT)y,
+	//		.Width = (FLOAT)w,
+	//		.Height = (FLOAT)h,
+	//		.MinDepth = 0,
+	//		.MaxDepth = 1,
+	//	};
+	//	state->immediate_context->RSSetViewports(1, &v);
+	//};
+	/*
+	_resize = [](RenderTarget *render_target, u32 w, u32 h) {
+		if (render_target == 0) {
+			state->back_buffer.color_target->Release();
+			state->back_buffer.depth_target->Release();
+			assert(SUCCEEDED(state->swap_chain->ResizeBuffers(1, w, h, DXGI_FORMAT_UNKNOWN, 0)));
+			create_back_buffer(w, h);
+		}
+	};
+	*/
+	_set_shader = [](Shader *_shader) {
+		auto &shader = *(ShaderImpl *)_shader;
+		state->immediate_context->VSSetShader(shader.vertex_shader, 0, 0);
+		state->immediate_context->VSSetConstantBuffers(0, 1, &shader.constant_buffer);
+
+		state->immediate_context->PSSetShader(shader.pixel_shader, 0, 0);
+		state->immediate_context->PSSetConstantBuffers(0, 1, &shader.constant_buffer);
+	};
+	//_set_value = [](Shader *_shader, ShaderValueLocation dest, void const *source) {
+	//	auto &shader = *(ShaderImpl *)_shader;
+	//	memcpy((u8 *)shader.constant_buffer_data + dest.start, source, dest.size);
+	//	state->immediate_context->UpdateSubresource(shader.constant_buffer, 0, 0, shader.constant_buffer_data, 0, 0);
+	//};
+	_create_shader = [](Span<utf8> source) -> Shader * {
+		auto &shader = state->shaders.add();
+		if (&shader) {
+			ID3DBlob *vertex_shader_bytecode = compile_shader(source, "vertex_shader", "vertex_main", "vs_5_0");
+			if (FAILED(state->device->CreateVertexShader(vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), 0, &shader.vertex_shader))) {
+				return false;
+			}
+
+			ID3DBlob *pixel_shader_bytecode = compile_shader(source, "pixel_shader", "pixel_main", "ps_5_0");
+			if (FAILED(state->device->CreatePixelShader(pixel_shader_bytecode->GetBufferPointer(), pixel_shader_bytecode->GetBufferSize(), 0, &shader.pixel_shader))) {
+				return false;
+			}
+
+			//{
+			//	D3D11_BUFFER_DESC desc = {
+			//		.ByteWidth = (UINT)values_size,
+			//		.Usage = D3D11_USAGE_DEFAULT,
+			//		.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+			//	};
+			//	if (FAILED(state->device->CreateBuffer(&desc, 0, &shader.constant_buffer))) {
+			//		return false;
+			//	}
+			//
+			//	shader.constant_buffer_data = default_allocator.allocate(values_size, 16);
+			//}
+		}
+		return &shader;
+	};
+	_calculate_perspective_matrices = [](v3f position, v3f rotation, f32 aspect_ratio, f32 fov, f32 near_plane, f32 far_plane) {
+		CameraMatrices result;
+		result.mvp = m4::perspective_left_handed(aspect_ratio, fov, near_plane, far_plane)
+				    * m4::rotation_r_yxz(rotation)
+					* m4::translation(-position);
+		return result;
+	};
+	_create_vertex_buffer = [](Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
+		VertexBufferImpl &result = state->vertex_buffers.add();
+
+		result.layout = get_input_layout(vertex_descriptor);
+
+		D3D11_BUFFER_DESC desc = {
+			.ByteWidth = (UINT)buffer.size,
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_VERTEX_BUFFER,
+			.StructureByteStride = result.layout->stride,
+		};
+
+		D3D11_SUBRESOURCE_DATA initial_data = {
+			.pSysMem = buffer.data,
+		};
+
+		assert(SUCCEEDED(state->device->CreateBuffer(&desc, &initial_data, &result.buffer)));
+
+		return &result;
+	};
+	_set_vertex_buffer = [](VertexBuffer *_buffer) {
+		auto buffer = (VertexBufferImpl *)_buffer;
+		UINT offset = 0;
+		state->immediate_context->IASetVertexBuffers(0, 1, &buffer->buffer, &buffer->layout->stride, &offset);
+		state->immediate_context->IASetInputLayout(buffer->layout->layout);
+	};
+	_create_index_buffer = [](Span<u8> buffer, u32 index_size) -> IndexBuffer * {
+		IndexBufferImpl &result = state->index_buffers.add();
+
+		result.format = get_index_format_from_size(index_size);
+
+		D3D11_BUFFER_DESC desc = {
+			.ByteWidth = (UINT)buffer.size,
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_INDEX_BUFFER,
+		};
+
+		D3D11_SUBRESOURCE_DATA initial_data = {
+			.pSysMem = buffer.data,
+		};
+
+		assert(SUCCEEDED(state->device->CreateBuffer(&desc, &initial_data, &result.buffer)));
+
+		return &result;
+	};
+	_set_index_buffer = [](IndexBuffer *_buffer) {
+		auto buffer = (IndexBufferImpl *)_buffer;
+		state->immediate_context->IASetIndexBuffer(buffer->buffer, buffer->format, 0);
+	};
+	_set_vsync = [](bool enable) {
+		state->sync_interval = enable ? 1 : 0;
+	};
+	_set_render_target = [](RenderTarget *_target) {
+		auto target = (RenderTargetImpl *)_target;
+		if (!target)
+			target = &state->back_buffer;
+		state->immediate_context->OMSetRenderTargets(1, &target->color_target, target->depth_target);
+	};
+	/*
+	_create_render_target = [](CreateRenderTargetFlags flags, TextureFormat _format, TextureFiltering filtering, TextureComparison comparison, u32 width, u32 height) -> RenderTarget * {
+		auto &result = state->render_targets.add();
+
+		auto format = get_format(_format);
+
+		if (flags & CreateRenderTarget_resize_with_window) {
+			state->render_targets_resized_with_window.insert(&result);
+		}
+
+		{
+			D3D11_TEXTURE2D_DESC desc = {
+				.Width = width,
+				.Height = height,
+				.MipLevels = 1,
+				.ArraySize = 1,
+				.Format = format,
+				.SampleDesc = {1, 0},
+				.Usage = D3D11_USAGE_DEFAULT,
+				.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+			};
+			assert(SUCCEEDED(state->device->CreateTexture2D(&desc, 0, &result.color_texture)));
+		}
+		{
+			D3D11_RENDER_TARGET_VIEW_DESC desc = {
+				.Format = format,
+				.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D,
+			};
+			assert(SUCCEEDED(state->device->CreateRenderTargetView(result.color_texture, &desc, &result.color_target)));
+		}
+
+		return &result;
+	};
+	*/
+
+	return true;
+}
+
+void free() {
+
+}
+
+}
+
+#endif
+
