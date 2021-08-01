@@ -5,7 +5,7 @@
 #include <tl/math.h>
 #include <tl/console.h>
 
-#define TGRAPHICS_API
+#define TGRAPHICS_API extern
 
 using namespace tl;
 
@@ -178,7 +178,7 @@ A(void, set_scissor, (Viewport viewport), (viewport)) \
 A(void, enable_scissor, (), ()) \
 A(void, disable_scissor, (), ()) \
 
-#define A(ret, name, args, values) extern TGRAPHICS_API ret (*_##name) args;
+#define A(ret, name, args, values) TGRAPHICS_API ret (*_##name) args;
 APIS(A)
 #undef A
 
@@ -186,8 +186,8 @@ APIS(A)
 APIS(A)
 #undef A
 
-extern TGRAPHICS_API RenderTarget *back_buffer;
-extern TGRAPHICS_API v2u min_texture_size;
+TGRAPHICS_API RenderTarget *back_buffer;
+TGRAPHICS_API v2u min_texture_size;
 
 inline void draw(u32 vertex_count) { return _draw(vertex_count, 0); }
 inline void set_viewport(u32 w, u32 h) { return _set_viewport({.min = {}, .max = {(s32)w, (s32)h}}); }
