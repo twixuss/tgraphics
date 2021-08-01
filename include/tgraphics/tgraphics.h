@@ -19,7 +19,6 @@ enum GraphicsApi {
 
 struct InitInfo {
 	NativeWindowHandle window = {};
-	v2u window_size = {};
 	bool debug = false;
 };
 

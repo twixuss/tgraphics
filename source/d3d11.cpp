@@ -9,9 +9,10 @@ tl::umm get_hash(tl::Span<tgraphics::ElementType> types) {
 }
 
 
-#include "../dep/tl/include/tl/console.h"
-#include "../dep/tl/include/tl/masked_block_list.h"
-#include "../dep/tl/include/tl/hash_map.h"
+#include <tl/console.h>
+#include <tl/masked_block_list.h>
+#include <tl/hash_map.h>
+#include <tl/window.h>
 
 #include <d3d11.h>
 #include <dxgi.h>
@@ -247,10 +248,12 @@ bool init(InitInfo init_info) {
 		return false;
 	}
 
+	auto client_size = get_client_size(init_info.window);
+
 	DXGI_SWAP_CHAIN_DESC desc = {
 		.BufferDesc = {
-			.Width = init_info.window_size.x,
-			.Height = init_info.window_size.y,
+			.Width = client_size.x,
+			.Height = client_size.y,
 			.RefreshRate = {
 				.Numerator = 1,
 				.Denominator = 60,
@@ -268,7 +271,7 @@ bool init(InitInfo init_info) {
 		return false;
 	}
 
-	if (!create_back_buffer(init_info.window_size.x, init_info.window_size.y)) {
+	if (!create_back_buffer(client_size.x, client_size.y)) {
 		return false;
 	}
 

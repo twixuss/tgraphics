@@ -3,6 +3,7 @@
 #include <tl/opengl.h>
 #include <tl/masked_block_list.h>
 #include <tl/hash_map.h>
+#include <tl/window.h>
 
 namespace tgraphics::gl {
 
@@ -292,7 +293,7 @@ bool init(InitInfo init_info) {
 
 	new (&state) State();
 
-	state.window_size = init_info.window_size;
+	state.window_size = get_client_size(init_info.window);
 
 	back_buffer = &state.back_buffer;
 	state.back_buffer.color = &state.back_buffer_color;
@@ -304,8 +305,6 @@ bool init(InitInfo init_info) {
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	
-	glEnable(GL_SCISSOR_TEST);
-
 	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		assert(_render_target);
 		auto &render_target = *(RenderTargetImpl *)_render_target;

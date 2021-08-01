@@ -17,6 +17,10 @@ namespace d3d11 { bool init(InitInfo init_info); void free(); }
 namespace gl    { bool init(InitInfo init_info); void free(); }
 
 static bool init_api(GraphicsApi api, InitInfo init_info) {
+	if (!init_info.window) {
+		print(Print_error, "init_info.window is null\n");
+		return false;
+	}
 	switch (api) {
 		case GraphicsApi_d3d11: return d3d11::init(init_info);
 		case GraphicsApi_opengl: return gl::init(init_info);
