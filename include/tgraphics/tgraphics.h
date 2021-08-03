@@ -321,8 +321,31 @@ void free();
 
 #ifdef TGRAPHICS_IMPL
 
-tl::umm get_hash(tl::Span<tgraphics::ElementType> types);
+namespace tgraphics {
 
+struct SamplerKey {
+	TextureFiltering filtering;
+	Comparison comparison;
+	bool operator==(SamplerKey const &that) const {
+		return filtering == that.filtering && comparison == that.comparison;
+	}
+};
+
+}
+
+template <>
+tl::umm get_hash(tgraphics::SamplerKey key) {
+	return key.filtering ^ key.comparison;
+}
+
+template <>
+tl::umm get_hash(tl::Span<tgraphics::ElementType> types) {
+	tl::umm hash = 0x13579BDF2468ACE;
+	for (auto &type : types) {
+		hash = tl::rotate_left(hash, 1) | type;
+	}
+	return hash;
+}
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -532,18 +555,6 @@ struct ComputeBufferImpl : ComputeBuffer {
 	GLuint buffer;
 	u32 size;
 };
-
-struct SamplerKey {
-	TextureFiltering filtering;
-	Comparison comparison;
-	bool operator==(SamplerKey const &that) const {
-		return filtering == that.filtering && comparison == that.comparison;
-	}
-};
-
-umm get_hash(SamplerKey key) {
-	return key.filtering ^ key.comparison;
-}
 
 struct State {
 	MaskedBlockList<ShaderImpl, 256> shaders;
@@ -1221,14 +1232,6 @@ void free() {
 	free(state.window_sized_textures);
 }
 
-}
-
-tl::umm get_hash(tl::Span<tgraphics::ElementType> types) {
-	tl::umm hash = 0x13579BDF2468ACE;
-	for (auto &type : types) {
-		hash = tl::rotate_left(hash, 1) | type;
-	}
-	return hash;
 }
 
 
