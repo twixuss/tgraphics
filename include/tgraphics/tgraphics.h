@@ -7,6 +7,10 @@
 
 #define TGRAPHICS_API extern
 
+#ifndef TGRAPHICS_TEXTURE_2D_EXTENSION
+#define TGRAPHICS_TEXTURE_2D_EXTENSION ::tl::EmptyStruct
+#endif
+
 using namespace tl;
 
 namespace tgraphics {
@@ -22,12 +26,12 @@ struct InitInfo {
 	bool debug = false;
 };
 
-struct Texture {
+struct Texture2D : TGRAPHICS_TEXTURE_2D_EXTENSION {
 	v2u size;
 };
 struct RenderTarget {
-	Texture *color;
-	Texture *depth;
+	Texture2D *color;
+	Texture2D *depth;
 };
 struct Shader {};
 struct VertexBuffer {};
@@ -52,28 +56,27 @@ enum ElementType : u8 {
 	Element_f32x4,
 };
 
-enum CreateTextureFlags : u8 {
-	CreateTexture_default            = 0x0,
-	CreateTexture_resize_with_window = 0x1,
+struct CreateTexture2DParams {
+	bool resize_with_window = false;
 };
 
-enum TextureFormat : u8 {
-	TextureFormat_null,
-	TextureFormat_depth,
-	TextureFormat_r_f32,
-	TextureFormat_rgb_u8n,
-	TextureFormat_rgb_f16,
-	TextureFormat_rgb_f32,
-	TextureFormat_rgba_u8n,
-	TextureFormat_rgba_f16,
-	TextureFormat_rgba_f32,
+enum Format : u8 {
+	Format_null,
+	Format_depth,
+	Format_r_f32,
+	Format_rgb_u8n,
+	Format_rgb_f16,
+	Format_rgb_f32,
+	Format_rgba_u8n,
+	Format_rgba_f16,
+	Format_rgba_f32,
 };
 
-enum TextureFiltering : u8 {
-	TextureFiltering_none,    // texture will be unsamplable
-	TextureFiltering_nearest,
-	TextureFiltering_linear,
-	TextureFiltering_linear_mipmap,
+enum Filtering : u8 {
+	Filtering_none,    // texture will be unsamplable
+	Filtering_nearest,
+	Filtering_linear,
+	Filtering_linear_mipmap,
 };
 
 enum Comparison : u8 {
@@ -94,19 +97,17 @@ enum : ClearFlags {
 struct RasterizerState {
 	u8 depth_test  : 1;
 	u8 depth_write : 1;
-	u8 depth_func  : CE::log2(CE::ceil_to_power_of_2(Comparison_count));
+	u8 depth_func  : ce::log2(ce::ceil_to_power_of_2(Comparison_count));
 	RasterizerState &set_depth_test (bool       value) { return depth_test  = value, *this; }
 	RasterizerState &set_depth_write(bool       value) { return depth_write = value, *this; }
 	RasterizerState &set_depth_func (Comparison value) { return depth_func  = value, *this; }
 };
 
 enum BlendFunction {
-	BlendFunction_disable,
 	BlendFunction_add,
 };
 
 enum Blend {
-	Blend_null,
 	Blend_one,
 	Blend_source_alpha,
 	Blend_one_minus_source_alpha,
@@ -119,7 +120,9 @@ enum Topology {
 	Topology_line_list,
 };
 
-union CubeTexturePaths {
+struct TextureCube {
+};
+union TextureCubePaths {
 	struct {
 		Span<pathchar> left;
 		Span<pathchar> right;
@@ -132,13 +135,23 @@ union CubeTexturePaths {
 };
 
 // min is bottom left
-// max is top tight
+// max is top right
 using Viewport = aabb<v2s>;
 
 using Access = u8;
 enum : Access {
 	Access_read  = 0x1,
 	Access_write = 0x2,
+};
+
+struct GenerateCubeMipmapParams {
+	bool irradiance = false;
+};
+
+enum Cull : u8 {
+	Cull_none,
+	Cull_back,
+	Cull_front,
 };
 
 #define TGRAPHICS_APIS(A) \
@@ -158,9 +171,10 @@ A(IndexBuffer *, create_index_buffer, (Span<u8> buffer, u32 index_size), (buffer
 A(void, set_index_buffer, (IndexBuffer *buffer), (buffer)) \
 A(void, set_vsync, (bool enable), (enable)) \
 A(void, set_render_target, (RenderTarget *target), (target)) \
-A(RenderTarget *, create_render_target, (Texture *color, Texture *depth), (color, depth)) \
-A(void, set_texture, (Texture *texture, u32 slot), (texture, slot)) \
-A(Texture *, create_texture, (CreateTextureFlags flags, u32 width, u32 height, void *data, TextureFormat format, TextureFiltering filtering, Comparison comparison), (flags, width, height, data, format, filtering, comparison)) \
+A(RenderTarget *, create_render_target, (Texture2D *color, Texture2D *depth), (color, depth)) \
+A(void, set_texture_2d, (Texture2D *texture, u32 slot), (texture, slot)) \
+A(void, set_texture_cube, (TextureCube *texture, u32 slot), (texture, slot)) \
+A(Texture2D *, create_texture_2d, (u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison, CreateTexture2DParams params), (width, height, data, format, filtering, comparison, params)) \
 A(ShaderConstants *, create_shader_constants, (umm size), (size))\
 A(void, set_shader_constants, (ShaderConstants *constants, u32 slot), (constants, slot)) \
 A(void, set_rasterizer, (RasterizerState state), (state)) \
@@ -168,23 +182,25 @@ A(RasterizerState, get_rasterizer, (), ()) \
 A(ComputeShader *, create_compute_shader, (Span<utf8> source), (source)) \
 A(void, set_compute_shader, (ComputeShader *shader), (shader)) \
 A(void, dispatch_compute_shader, (u32 x, u32 y, u32 z), (x, y, z)) \
-A(void, resize_texture, (Texture *texture, u32 w, u32 h), (texture, w, h)) \
+A(void, resize_texture_2d, (Texture2D *texture, u32 w, u32 h), (texture, w, h)) \
 A(ComputeBuffer *, create_compute_buffer, (u32 size), (size)) \
 A(void, read_compute_buffer, (ComputeBuffer *buffer, void *data), (buffer, data)) \
 A(void, set_compute_buffer, (ComputeBuffer *buffer, u32 slot), (buffer, slot)) \
-A(void, set_compute_texture, (Texture *texture, u32 slot), (texture, slot)) \
-A(void, read_texture, (Texture *texture, Span<u8> data), (texture, data)) \
+A(void, set_compute_texture, (Texture2D *texture, u32 slot), (texture, slot)) \
+A(void, read_texture, (Texture2D *texture, Span<u8> data), (texture, data)) \
 A(void, set_blend, (BlendFunction function, Blend source, Blend destination), (function, source, destination)) \
-A(Texture *, create_cube_texture, (CreateTextureFlags flags, u32 width, u32 height, void *data[6], TextureFormat format, TextureFiltering filtering, Comparison comparison), (flags, width, height, data, format, filtering, comparison)) \
+A(TextureCube *, create_texture_cube, (u32 size, void *data[6], Format format, Filtering filtering, Comparison comparison), (size, data, format, filtering, comparison)) \
 A(void, set_topology, (Topology topology), (topology)) \
 A(void, update_vertex_buffer, (VertexBuffer *buffer, Span<u8> data), (buffer, data)) \
-A(void, update_texture, (Texture *texture, u32 width, u32 height, void *data), (texture, width, height, data)) \
-A(void, generate_mipmaps, (Texture *texture), (texture)) \
+A(void, update_texture, (Texture2D *texture, u32 width, u32 height, void *data), (texture, width, height, data)) \
+A(void, generate_mipmaps_2d, (Texture2D *texture), (texture)) \
+A(void, generate_mipmaps_cube, (TextureCube *texture, GenerateCubeMipmapParams params), (texture, params)) \
 A(void, set_scissor, (Viewport viewport), (viewport)) \
-A(void, enable_scissor, (), ()) \
 A(void, disable_scissor, (), ()) \
 A(void *, map_shader_constants, (ShaderConstants *constants, Access access), (constants, access)) \
 A(void, unmap_shader_constants, (ShaderConstants *constants), (constants)) \
+A(void, set_cull, (Cull cull), (cull)) \
+A(void, disable_blend, (), ()) \
 
 #define A(ret, name, args, values) TGRAPHICS_API ret (*_##name) args;
 TGRAPHICS_APIS(A)
@@ -211,10 +227,51 @@ inline void update_shader_constants(ShaderConstants *constants, T const &source)
 	return _update_shader_constants(constants, {0, sizeof(source)}, &source);
 }
 
+inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison) {
+	return _create_texture_2d(width, height, data, format, filtering, comparison, {});
+}
+inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering, CreateTexture2DParams params) {
+	return _create_texture_2d(width, height, data, format, filtering, Comparison_none, params);
+}
+inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering) {
+	return _create_texture_2d(width, height, data, format, filtering, Comparison_none, {});
+}
+
+inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering, Comparison comparison) {
+	return _create_texture_2d(size.x, size.y, data, format, filtering, comparison, {});
+}
+inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering, CreateTexture2DParams params) {
+	return _create_texture_2d(size.x, size.y, data, format, filtering, Comparison_none, params);
+}
+inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering) {
+	return _create_texture_2d(size.x, size.y, data, format, filtering, Comparison_none, {});
+}
+
+inline void set_texture(Texture2D *texture, u32 slot) {
+	return _set_texture_2d(texture, slot);
+}
+inline void set_texture(TextureCube *texture, u32 slot) {
+	return _set_texture_cube(texture, slot);
+}
+
+inline void update_texture(Texture2D *texture, v2u size, void *data) {
+	return _update_texture(texture, size.x, size.y, data);
+}
+
+inline void generate_mipmaps(Texture2D *texture) {
+	return _generate_mipmaps_2d(texture);
+}
+inline void generate_mipmaps(TextureCube *texture, GenerateCubeMipmapParams params) {
+	return _generate_mipmaps_cube(texture, params);
+}
+inline void generate_mipmaps(TextureCube *texture) {
+	return _generate_mipmaps_cube(texture, {});
+}
+
 struct Pixels {
 	void *data;
 	v2u size;
-	TextureFormat format;
+	Format format;
 	void (*free)(void *data);
 };
 
@@ -229,24 +286,24 @@ struct LoadTextureParams {
 	bool flip_y = false;
 };
 
-inline Texture *load_texture(Span<pathchar> path, LoadTextureParams params = {}) {
+inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
 	auto pixels = load_pixels(path, {.flip_y = params.flip_y});
 	if (!pixels.data) {
 		return 0;
 	}
 	defer { pixels.free(pixels.data); };
-	auto filter = TextureFiltering_linear;
+	auto filter = Filtering_linear;
 	if (params.generate_mipmaps) {
-		filter = TextureFiltering_linear_mipmap;
+		filter = Filtering_linear_mipmap;
 	}
-	auto result = _create_texture(CreateTexture_default, pixels.size.x, pixels.size.y, pixels.data, pixels.format, filter, Comparison_none);
+	auto result = _create_texture_2d(pixels.size.x, pixels.size.y, pixels.data, pixels.format, filter, Comparison_none, {});
 	if (params.generate_mipmaps) {
-		_generate_mipmaps(result);
+		_generate_mipmaps_2d(result);
 	}
 	return result;
 }
 
-inline Texture *load_texture(CubeTexturePaths paths) {
+inline TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams params = {}, GenerateCubeMipmapParams mipmap_params = {}) {
 	Pixels pixels[6];
 	void *datas[6];
 	for (u32 i = 0; i < 6; ++i) {
@@ -254,9 +311,15 @@ inline Texture *load_texture(CubeTexturePaths paths) {
 		if (!pixels[i].data) {
 			return 0;
 		}
-		if (i != 0) {
-			bool fail = false;
-			Span<char> reason;
+
+		bool fail = false;
+		Span<char> reason;
+		if (i == 0) {
+			if (pixels[0].size.y != pixels[0].size.x) {
+				fail = true;
+				reason = "first face is not a square"s;
+			}
+		} else {
 			if (any_true(pixels[i].size != pixels[0].size)) {
 				fail = true;
 				reason = "sizes of faces do not match"s;
@@ -265,19 +328,20 @@ inline Texture *load_texture(CubeTexturePaths paths) {
 				fail = true;
 				reason = "formats of faces do not match"s;
 			}
-			if (fail) {
-				print(Print_error, "Failed to load cube texture (%) with these paths:\n\t%\n\t%\n\t%\n\t%\n\t%\n\t%\n"
-					, reason
-					, paths.paths[0]
-					, paths.paths[1]
-					, paths.paths[2]
-					, paths.paths[3]
-					, paths.paths[4]
-					, paths.paths[5]
-				);
-				return 0;
-			}
 		}
+		if (fail) {
+			print(Print_error, "Failed to load cube texture (%) with these paths:\n\t%\n\t%\n\t%\n\t%\n\t%\n\t%\n"
+				, reason
+				, paths.paths[0]
+				, paths.paths[1]
+				, paths.paths[2]
+				, paths.paths[3]
+				, paths.paths[4]
+				, paths.paths[5]
+			);
+			return 0;
+		}
+
 		datas[i] = pixels[i].data;
 	}
 	defer {
@@ -285,10 +349,15 @@ inline Texture *load_texture(CubeTexturePaths paths) {
 			pixels[i].free(pixels[i].data);
 		}
 	};
-	return _create_cube_texture(CreateTexture_default, pixels[0].size.x, pixels[0].size.y, datas, pixels[0].format, TextureFiltering_linear, Comparison_none);
+	auto result = _create_texture_cube(pixels[0].size.x, datas, pixels[0].format, Filtering_linear, Comparison_none);
+	if (params.generate_mipmaps) {
+		_generate_mipmaps_cube(result, mipmap_params);
+	}
+	return result;
 }
 
-inline void resize_texture(Texture *texture, v2u size) { return _resize_texture(texture, size.x, size.y); }
+inline void resize_texture_2d(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
+inline void resize_texture(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
 
 template <class T>
 struct TypedShaderConstants {
@@ -343,7 +412,7 @@ void free();
 namespace tgraphics {
 
 struct SamplerKey {
-	TextureFiltering filtering;
+	Filtering filtering;
 	Comparison comparison;
 	bool operator==(SamplerKey const &that) const {
 		return filtering == that.filtering && comparison == that.comparison;
@@ -434,10 +503,10 @@ Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params) {
 	int width, height;
 	if (stbi_is_hdr_from_memory(file.data, file.size)) {
 		result.data = stbi_loadf_from_memory(file.data, file.size, &width, &height, 0, 4);
-		result.format = TextureFormat_rgba_f32;
+		result.format = Format_rgba_f32;
 	} else {
 		result.data = stbi_load_from_memory(file.data, file.size, &width, &height, 0, 4);
-		result.format = TextureFormat_rgba_u8n;
+		result.format = Format_rgba_u8n;
 	}
 	if (!result.data) {
 		print(Print_error, "Failed to parse texture from %. Reason: %.\n", path, stbi_failure_reason());
@@ -476,7 +545,7 @@ struct IndexBufferImpl : IndexBuffer {
 	u32 count;
 };
 
-struct TextureImpl : Texture {
+struct Texture {
 	GLuint texture;
 	GLuint sampler;
 	GLuint format;
@@ -485,6 +554,9 @@ struct TextureImpl : Texture {
 	GLuint target;
 	u32 bytes_per_texel;
 };
+
+struct Texture2DImpl : Texture2D, Texture {};
+struct TextureCubeImpl : TextureCube, Texture {};
 
 struct RenderTargetImpl : RenderTarget {
 	GLuint frame_buffer;
@@ -503,24 +575,27 @@ struct State {
 	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
 	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
 	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<TextureImpl, 256> textures;
+	MaskedBlockList<Texture2DImpl, 256> textures_2d;
+	MaskedBlockList<TextureCubeImpl, 256> textures_cube;
 	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
 	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
 	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
 	IndexBufferImpl *current_index_buffer;
 	RenderTargetImpl back_buffer;
-	TextureImpl back_buffer_color;
-	TextureImpl back_buffer_depth;
+	Texture2DImpl back_buffer_color;
+	Texture2DImpl back_buffer_depth;
 	RenderTargetImpl *currently_bound_render_target;
 	StaticHashMap<SamplerKey, GLuint, 256> samplers;
 	v2u window_size;
-	List<TextureImpl *> window_sized_textures;
+	List<Texture2DImpl *> window_sized_textures;
 	RasterizerState rasterizer;
 	BlendFunction blend_function;
 	Blend blend_source;
 	Blend blend_destination;
 	GLuint topology = GL_TRIANGLES;
+	Cull cull = Cull_back;
 	bool scissor_enabled;
+	bool blend_enabled;
 };
 static State state;
 
@@ -566,20 +641,20 @@ u32 get_index_type_from_size(u32 size) {
 	return 0;
 }
 
-GLuint get_min_filter(TextureFiltering filter) {
+GLuint get_min_filter(Filtering filter) {
 	switch (filter) {
-		case TextureFiltering_nearest:        return GL_NEAREST;
-		case TextureFiltering_linear:         return GL_LINEAR;
-		case TextureFiltering_linear_mipmap:  return GL_LINEAR_MIPMAP_LINEAR;
+		case Filtering_nearest:        return GL_NEAREST;
+		case Filtering_linear:         return GL_LINEAR;
+		case Filtering_linear_mipmap:  return GL_LINEAR_MIPMAP_LINEAR;
 	}
 	invalid_code_path();
 	return 0;
 }
-GLuint get_mag_filter(TextureFiltering filter) {
+GLuint get_mag_filter(Filtering filter) {
 	switch (filter) {
-		case TextureFiltering_nearest:        return GL_NEAREST;
-		case TextureFiltering_linear:         return GL_LINEAR;
-		case TextureFiltering_linear_mipmap:  return GL_LINEAR;
+		case Filtering_nearest:        return GL_NEAREST;
+		case Filtering_linear:         return GL_LINEAR;
+		case Filtering_linear_mipmap:  return GL_LINEAR;
 	}
 	invalid_code_path();
 	return 0;
@@ -595,60 +670,60 @@ GLuint get_func(Comparison comparison) {
 	return 0;
 }
 
-GLuint get_format(TextureFormat format) {
+GLuint get_format(Format format) {
 	switch (format) {
-		case TextureFormat_depth:    return GL_DEPTH_COMPONENT;
-		case TextureFormat_r_f32:    return GL_RED;
-		case TextureFormat_rgb_u8n:  return GL_RGB;
-		case TextureFormat_rgb_f16:  return GL_RGB;
-		case TextureFormat_rgb_f32:  return GL_RGB;
-		case TextureFormat_rgba_u8n: return GL_RGBA;
-		case TextureFormat_rgba_f16: return GL_RGBA;
-		case TextureFormat_rgba_f32: return GL_RGBA;
+		case Format_depth:    return GL_DEPTH_COMPONENT;
+		case Format_r_f32:    return GL_RED;
+		case Format_rgb_u8n:  return GL_RGB;
+		case Format_rgb_f16:  return GL_RGB;
+		case Format_rgb_f32:  return GL_RGB;
+		case Format_rgba_u8n: return GL_RGBA;
+		case Format_rgba_f16: return GL_RGBA;
+		case Format_rgba_f32: return GL_RGBA;
 	}
 	invalid_code_path();
 	return 0;
 }
 
-GLuint get_internal_format(TextureFormat format) {
+GLuint get_internal_format(Format format) {
 	switch (format) {
-		case TextureFormat_depth:    return GL_DEPTH_COMPONENT;
-		case TextureFormat_r_f32:    return GL_R32F;
-		case TextureFormat_rgb_u8n:  return GL_RGB8;
-		case TextureFormat_rgb_f16:  return GL_RGB16F;
-		case TextureFormat_rgb_f32:  return GL_RGB32F;
-		case TextureFormat_rgba_u8n: return GL_RGBA8;
-		case TextureFormat_rgba_f16: return GL_RGBA16F;
-		case TextureFormat_rgba_f32: return GL_RGBA32F;
+		case Format_depth:    return GL_DEPTH_COMPONENT;
+		case Format_r_f32:    return GL_R32F;
+		case Format_rgb_u8n:  return GL_RGB8;
+		case Format_rgb_f16:  return GL_RGB16F;
+		case Format_rgb_f32:  return GL_RGB32F;
+		case Format_rgba_u8n: return GL_RGBA8;
+		case Format_rgba_f16: return GL_RGBA16F;
+		case Format_rgba_f32: return GL_RGBA32F;
 	}
 	invalid_code_path();
 	return 0;
 }
 
-GLuint get_type(TextureFormat format) {
+GLuint get_type(Format format) {
 	switch (format) {
-		case TextureFormat_depth:    return GL_FLOAT;
-		case TextureFormat_r_f32:    return GL_FLOAT;
-		case TextureFormat_rgb_u8n:  return GL_UNSIGNED_BYTE;
-		case TextureFormat_rgb_f16:  return GL_FLOAT;
-		case TextureFormat_rgb_f32:  return GL_FLOAT;
-		case TextureFormat_rgba_u8n: return GL_UNSIGNED_BYTE;
-		case TextureFormat_rgba_f16: return GL_FLOAT;
-		case TextureFormat_rgba_f32: return GL_FLOAT;
+		case Format_depth:    return GL_FLOAT;
+		case Format_r_f32:    return GL_FLOAT;
+		case Format_rgb_u8n:  return GL_UNSIGNED_BYTE;
+		case Format_rgb_f16:  return GL_FLOAT;
+		case Format_rgb_f32:  return GL_FLOAT;
+		case Format_rgba_u8n: return GL_UNSIGNED_BYTE;
+		case Format_rgba_f16: return GL_FLOAT;
+		case Format_rgba_f32: return GL_FLOAT;
 	}
 	invalid_code_path();
 	return 0;
 }
-u32 get_bytes_per_texel(TextureFormat format) {
+u32 get_bytes_per_texel(Format format) {
 	switch (format) {
-		case TextureFormat_depth:    return 4;
-		case TextureFormat_r_f32:    return 4;
-		case TextureFormat_rgb_u8n:  return 3;
-		case TextureFormat_rgb_f16:  return 6;
-		case TextureFormat_rgb_f32:  return 12;
-		case TextureFormat_rgba_u8n: return 4;
-		case TextureFormat_rgba_f16: return 8;
-		case TextureFormat_rgba_f32: return 16;
+		case Format_depth:    return 4;
+		case Format_r_f32:    return 4;
+		case Format_rgb_u8n:  return 3;
+		case Format_rgb_f16:  return 6;
+		case Format_rgb_f32:  return 12;
+		case Format_rgba_u8n: return 4;
+		case Format_rgba_f16: return 8;
+		case Format_rgba_f32: return 16;
 	}
 	invalid_code_path();
 	return 0;
@@ -693,6 +768,15 @@ GLuint get_access(Access access) {
 	return 0;
 }
 
+GLenum get_cull(Cull cull) {
+	switch (cull) {
+		case Cull_back:	 return GL_BACK;
+		case Cull_front: return GL_FRONT;
+	}
+	invalid_code_path();
+	return 0;
+}
+
 void bind_render_target(RenderTargetImpl &render_target) {
 	if (&render_target == state.currently_bound_render_target)
 		return;
@@ -701,8 +785,8 @@ void bind_render_target(RenderTargetImpl &render_target) {
 	glBindFramebuffer(GL_FRAMEBUFFER, render_target.frame_buffer);
 }
 
-GLuint get_sampler(TextureFiltering filtering, Comparison comparison) {
-	if (filtering == TextureFiltering_none)
+GLuint get_sampler(Filtering filtering, Comparison comparison) {
+	if (filtering == Filtering_none)
 		return 0;
 
 	auto &result = state.samplers.get_or_insert({filtering, comparison});
@@ -722,8 +806,8 @@ GLuint get_sampler(TextureFiltering filtering, Comparison comparison) {
 	return result;
 }
 
-void resize_texture_gl(Texture *_texture, u32 width, u32 height) {
-	auto &texture = *(TextureImpl *)_texture;
+void resize_texture_gl(Texture2D *_texture, u32 width, u32 height) {
+	auto &texture = *(Texture2DImpl *)_texture;
 	texture.size = {width, height};
 	glBindTexture(texture.target, texture.texture);
 	glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, NULL);
@@ -744,8 +828,8 @@ bool init(InitInfo init_info) {
 	state.back_buffer.color = &state.back_buffer_color;
 	state.back_buffer.depth = &state.back_buffer_depth;
 
-	//glEnable(GL_CULL_FACE);
-	//glCullFace(GL_BACK);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
 
 	//glEnable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_LESS);
@@ -899,10 +983,10 @@ bool init(InitInfo init_info) {
 		auto &render_target = *(RenderTargetImpl *)_render_target;
 		bind_render_target(render_target);
 	};
-	_create_render_target = [](Texture *_color, Texture *_depth) -> RenderTarget * {
+	_create_render_target = [](Texture2D *_color, Texture2D *_depth) -> RenderTarget * {
 		assert(_color || _depth);
-		auto color = (TextureImpl *)_color;
-		auto depth = (TextureImpl *)_depth;
+		auto color = (Texture2DImpl *)_color;
+		auto depth = (Texture2DImpl *)_depth;
 
 		auto &result = state.render_targets.add();
 
@@ -936,8 +1020,8 @@ bool init(InitInfo init_info) {
 
 		return &result;
 	};
-	_set_texture = [](Texture *_texture, u32 slot) {
-		auto &texture = *(TextureImpl *)_texture;
+	_set_texture_2d = [](Texture2D *_texture, u32 slot) {
+		auto &texture = *(Texture2DImpl *)_texture;
 		glActiveTexture(GL_TEXTURE0 + slot);
 		if (_texture) {
 			glBindTexture(texture.target, texture.texture);
@@ -947,12 +1031,23 @@ bool init(InitInfo init_info) {
 			glBindSampler(slot, 0);
 		}
 	};
-	_create_texture = [](CreateTextureFlags flags, u32 width, u32 height, void *data, TextureFormat format, TextureFiltering filtering, Comparison comparison) -> Texture * {
-		auto &result = state.textures.add();
+	_set_texture_cube = [](TextureCube *_texture, u32 slot) {
+		auto &texture = *(TextureCubeImpl *)_texture;
+		glActiveTexture(GL_TEXTURE0 + slot);
+		if (_texture) {
+			glBindTexture(texture.target, texture.texture);
+			glBindSampler(slot, texture.sampler);
+		} else {
+			glBindTexture(texture.target, 0);
+			glBindSampler(slot, 0);
+		}
+	};
+	_create_texture_2d = [](u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison, CreateTexture2DParams params) -> Texture2D * {
+		auto &result = state.textures_2d.add();
 
 		result.size = {width, height};
 
-		if (flags & CreateTexture_resize_with_window) {
+		if (params.resize_with_window) {
 			state.window_sized_textures.add(&result);
 			width  = state.window_size.x;
 			height = state.window_size.y;
@@ -1013,7 +1108,7 @@ bool init(InitInfo init_info) {
 	_dispatch_compute_shader = [](u32 x, u32 y, u32 z) {
 		glDispatchCompute(x, y, z);
 	};
-	_resize_texture = resize_texture_gl;
+	_resize_texture_2d = resize_texture_gl;
 	_create_compute_buffer = [](u32 size) -> ComputeBuffer * {
 		auto &result = state.compute_buffers.add();
 		result.size = size;
@@ -1043,45 +1138,42 @@ bool init(InitInfo init_info) {
 		memcpy(data, resultData, buffer.size);
 		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 	};
-	_set_compute_texture = [](Texture *_texture, u32 slot) {
+	_set_compute_texture = [](Texture2D *_texture, u32 slot) {
 		assert(_texture);
-		auto &texture = *(TextureImpl *)_texture;
+		auto &texture = *(Texture2DImpl *)_texture;
 		glBindImageTexture(slot, texture.texture, 0, GL_FALSE, 0, GL_READ_ONLY, texture.internal_format);
 	};
-	_read_texture = [](Texture *_texture, Span<u8> data) {
+	_read_texture = [](Texture2D *_texture, Span<u8> data) {
 		assert(_texture);
-		auto &texture = *(TextureImpl *)_texture;
+		auto &texture = *(Texture2DImpl *)_texture;
 		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.size, data.data);
 	};
 	_set_blend = [](BlendFunction function, Blend source, Blend destination) {
+		if (!state.blend_enabled) {
+			state.blend_enabled = true;
+			glEnable(GL_BLEND);
+		}
+
 		if (function != state.blend_function) {
 			state.blend_function = function;
-
-			if (function == BlendFunction_disable) {
-				glDisable(GL_BLEND);
-			} else {
-				glEnable(GL_BLEND);
-				glBlendEquation(get_equation(function));
-			}
+			glBlendEquation(get_equation(function));
 		}
 		if (source != state.blend_source || destination != state.blend_destination) {
 			state.blend_source = source;
 			state.blend_destination = destination;
-			if (function != BlendFunction_disable) {
-				glBlendFunc(get_blend(source), get_blend(destination));
-			}
+			glBlendFunc(get_blend(source), get_blend(destination));
 		}
 	};
-	_create_cube_texture = [](CreateTextureFlags flags, u32 width, u32 height, void *data[6], TextureFormat format, TextureFiltering filtering, Comparison comparison) -> Texture * {
-		auto &result = state.textures.add();
-
-		result.size = {width, height};
-
-		if (flags & CreateTexture_resize_with_window) {
-			state.window_sized_textures.add(&result);
-			width  = state.window_size.x;
-			height = state.window_size.y;
+	_disable_blend = []() {
+		if (state.blend_enabled) {
+			state.blend_enabled = false;
+			glDisable(GL_BLEND);
 		}
+	};
+	_create_texture_cube = [](u32 size, void *data[6], Format format, Filtering filtering, Comparison comparison) -> TextureCube * {
+		auto &result = state.textures_cube.add();
+
+		// result.size = {width, height};
 
 		result.internal_format = get_internal_format(format);
 		result.format          = get_format(format);
@@ -1092,7 +1184,7 @@ bool init(InitInfo init_info) {
 		glGenTextures(1, &result.texture);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, result.texture);
 		for (u32 i = 0; i < 6; ++i) {
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, result.internal_format, width, height, 0, result.format, result.type, data[i]);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, result.internal_format, size, size, 0, result.format, result.type, data[i]);
 		}
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
@@ -1109,36 +1201,33 @@ bool init(InitInfo init_info) {
 		glBufferData(GL_ARRAY_BUFFER, data.size, data.data, GL_STATIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	};
-	_update_texture = [](Texture *_texture, u32 width, u32 height, void *data) {
-		auto &texture = *(TextureImpl *)_texture;
+	_update_texture = [](Texture2D *_texture, u32 width, u32 height, void *data) {
+		auto &texture = *(Texture2DImpl *)_texture;
 		glBindTexture(texture.target, texture.texture);
 		glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, data);
 		glBindTexture(texture.target, 0);
 	};
-	_generate_mipmaps = [](Texture *_texture) {
+	_generate_mipmaps_2d = [](Texture2D *_texture) {
 		assert(_texture);
-		auto &texture = *(TextureImpl *)_texture;
-		glBindTexture(GL_TEXTURE_2D, texture.texture);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glGenerateMipmap(GL_TEXTURE_2D);
-		glBindTexture(GL_TEXTURE_2D, 0);
+		auto &texture = *(Texture2DImpl *)_texture;
+		glGenerateTextureMipmap(texture.texture);
+	};
+	_generate_mipmaps_cube = [](TextureCube *_texture, GenerateCubeMipmapParams params) {
+		assert(_texture);
+		auto &texture = *(TextureCubeImpl *)_texture;
+		glGenerateTextureMipmap(texture.texture);
 	};
 	_set_scissor = [](Viewport viewport) {
+		if (!state.scissor_enabled) {
+			state.scissor_enabled = true;
+			glEnable(GL_SCISSOR_TEST);
+		}
 		assert(viewport.max.x - viewport.min.x > 0);
 		assert(viewport.max.y - viewport.min.y > 0);
 		if (!state.scissor_enabled) {
 			print(Print_warning, "tgraphics::set_scissor was called when scessor test is not enabled\n");
 		}
 		glScissor(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
-	};
-	_enable_scissor = [] {
-		if (!state.scissor_enabled) {
-			state.scissor_enabled = true;
-			glEnable(GL_SCISSOR_TEST);
-		}
 	};
 	_disable_scissor = [] {
 		if (state.scissor_enabled) {
@@ -1156,6 +1245,18 @@ bool init(InitInfo init_info) {
 		auto &constants = *(ShaderConstantsImpl *)_constants;
 		glUnmapNamedBuffer(constants.uniform_buffer);
 	};
+	_set_cull = [](Cull cull) {
+		if (cull != state.cull) {
+			if (cull == Cull_none) {
+				glDisable(GL_CULL_FACE);
+			} else {
+				if (state.cull == Cull_none) {
+					glEnable(GL_CULL_FACE);
+				}
+				glCullFace(get_cull(cull));
+			}
+		}
+	};
 	return true;
 }
 
@@ -1165,18 +1266,18 @@ void free() {
 	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
 	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
 	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<TextureImpl, 256> textures;
+	MaskedBlockList<Texture2DImpl, 256> textures;
 	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
 	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
 	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
 	IndexBufferImpl *current_index_buffer;
 	RenderTargetImpl back_buffer;
-	TextureImpl back_buffer_color;
-	TextureImpl back_buffer_depth;
+	Texture2DImpl back_buffer_color;
+	Texture2DImpl back_buffer_depth;
 	RenderTargetImpl *currently_bound_render_target;
 	StaticHashMap<SamplerKey, GLuint, 256> samplers;
 	v2u window_size;
-	List<TextureImpl *> window_sized_textures;
+	List<Texture2DImpl *> window_sized_textures;
 	RasterizerState rasterizer;
 	BlendFunction blend_function;
 	Blend blend_source;
@@ -1186,7 +1287,7 @@ void free() {
 	free(state.vertex_buffers);
 	free(state.index_buffers);
 	free(state.render_targets);
-	free(state.textures);
+	free(state.textures_2d);
 	free(state.shader_constants);
 	free(state.compute_shaders);
 	free(state.compute_buffers);
@@ -1388,9 +1489,9 @@ InputLayout *get_input_layout(Span<ElementType> vertex_descriptor) {
 	return &result;
 }
 
-DXGI_FORMAT get_format(TextureFormat format) {
+DXGI_FORMAT get_format(Format format) {
 	switch (format) {
-		case tgraphics::TextureFormat_r_f32: return DXGI_FORMAT_R32_FLOAT;
+		case tgraphics::Format_r_f32: return DXGI_FORMAT_R32_FLOAT;
 	}
 	invalid_code_path();
 	return DXGI_FORMAT_UNKNOWN;
@@ -1618,7 +1719,7 @@ bool init(InitInfo init_info) {
 		state->immediate_context->OMSetRenderTargets(1, &target->color_target, target->depth_target);
 	};
 	/*
-	_create_render_target = [](CreateRenderTargetFlags flags, TextureFormat _format, TextureFiltering filtering, TextureComparison comparison, u32 width, u32 height) -> RenderTarget * {
+	_create_render_target = [](CreateRenderTargetFlags flags, Format _format, Filtering filtering, TextureComparison comparison, u32 width, u32 height) -> RenderTarget * {
 		auto &result = state->render_targets.add();
 
 		auto format = get_format(_format);
