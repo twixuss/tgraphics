@@ -279,15 +279,23 @@ struct LoadPixelsParams {
 	bool flip_y = false;
 };
 
-TGRAPHICS_API Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params = {});
+TGRAPHICS_API Pixels load_pixels(Span<u8> data, LoadPixelsParams params = {});
+inline Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params = {}) {
+	auto file = read_entire_file(path);
+	if (!file.data) {
+		print(Print_error, "Failed to read file %.\n", path);
+		return {};
+	}
+	return load_pixels(file, params);
+}
 
 struct LoadTextureParams {
 	bool generate_mipmaps = false;
 	bool flip_y = false;
 };
 
-inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
-	auto pixels = load_pixels(path, {.flip_y = params.flip_y});
+inline Texture2D *load_texture_2d(Span<u8> data, LoadTextureParams params = {}) {
+	auto pixels = load_pixels(data, {.flip_y = params.flip_y});
 	if (!pixels.data) {
 		return 0;
 	}
@@ -301,6 +309,14 @@ inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params 
 		_generate_mipmaps_2d(result);
 	}
 	return result;
+}
+inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
+	auto file = read_entire_file(path);
+	if (!file.data) {
+		print(Print_error, "Failed to read file %.\n", path);
+		return {};
+	}
+	return load_texture_2d(file, params);
 }
 
 inline TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams params = {}, GenerateCubeMipmapParams mipmap_params = {}) {
@@ -489,27 +505,21 @@ void free() {
 	current_api = {};
 }
 
-Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params) {
+Pixels load_pixels(Span<u8> data, LoadPixelsParams params) {
 	Pixels result;
-
-	auto file = read_entire_file(path);
-	if (!file.data) {
-		print(Print_error, "Failed to read file %.\n", path);
-		return {};
-	}
 
 	stbi_set_flip_vertically_on_load(params.flip_y);
 
 	int width, height;
-	if (stbi_is_hdr_from_memory(file.data, file.size)) {
-		result.data = stbi_loadf_from_memory(file.data, file.size, &width, &height, 0, 4);
+	if (stbi_is_hdr_from_memory(data.data, data.size)) {
+		result.data = stbi_loadf_from_memory(data.data, data.size, &width, &height, 0, 4);
 		result.format = Format_rgba_f32;
 	} else {
-		result.data = stbi_load_from_memory(file.data, file.size, &width, &height, 0, 4);
+		result.data = stbi_load_from_memory(data.data, data.size, &width, &height, 0, 4);
 		result.format = Format_rgba_u8n;
 	}
 	if (!result.data) {
-		print(Print_error, "Failed to parse texture from %. Reason: %.\n", path, stbi_failure_reason());
+		print(Print_error, "Failed to parse texture. Reason: %.\n", stbi_failure_reason());
 		return {};
 	}
 	result.size = {(u32)width, (u32)height};
