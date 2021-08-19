@@ -4,6 +4,7 @@
 #include <tl/file.h>
 #include <tl/math.h>
 #include <tl/console.h>
+#include <tl/hash_map.h>
 
 #define TGRAPHICS_API extern
 
@@ -24,6 +25,7 @@ enum GraphicsApi {
 struct InitInfo {
 	NativeWindowHandle window = {};
 	bool debug = false;
+	bool dont_check_apis = false;
 };
 
 struct Texture2D : TGRAPHICS_TEXTURE_2D_EXTENSION {
@@ -468,8 +470,8 @@ TGRAPHICS_APIS(A)
 RenderTarget *back_buffer;
 v2u min_texture_size;
 
-namespace d3d11 { bool init(InitInfo init_info); void free(); }
-namespace gl    { bool init(InitInfo init_info); void free(); }
+namespace d3d11 { bool init(InitInfo init_info); void deinit(); }
+namespace gl    { bool init(InitInfo init_info); void deinit(); }
 
 static bool init_api(GraphicsApi api, InitInfo init_info) {
 	if (!init_info.window) {
@@ -494,13 +496,19 @@ TGRAPHICS_APIS(A)
 GraphicsApi current_api;
 
 bool init(GraphicsApi api, InitInfo init_info) {
-	return current_api = api, init_api(api, init_info) && check_api();
+	current_api = api;
+
+	if (!init_api(api, init_info)) {
+		return false;
+	}
+
+	return init_info.dont_check_apis || check_api();
 }
 
-void free() {
+void deinit() {
 	switch (current_api) {
-		case GraphicsApi_d3d11: return d3d11::free();
-		case GraphicsApi_opengl: return gl::free();
+		case GraphicsApi_d3d11: return d3d11::deinit();
+		case GraphicsApi_opengl: return gl::deinit();
 	}
 	current_api = {};
 }
@@ -1270,7 +1278,7 @@ bool init(InitInfo init_info) {
 	return true;
 }
 
-void free() {
+void deinit() {
 	/*
 	MaskedBlockList<ShaderImpl, 256> shaders;
 	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
@@ -1584,6 +1592,19 @@ bool init(InitInfo init_info) {
 	}
 	state->immediate_context->RSSetState(rasterizer_state);
 
+	ID3D11DepthStencilState *depth_state = 0;
+	{
+		D3D11_DEPTH_STENCIL_DESC desc = {
+			.DepthEnable = false,
+			.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
+			.DepthFunc = D3D11_COMPARISON_LESS,
+		};
+		if (FAILED(state->device->CreateDepthStencilState(&desc, &depth_state))) {
+			return false;
+		}
+	}
+	state->immediate_context->OMSetDepthStencilState(depth_state, 0);
+
 	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		auto render_target = (RenderTargetImpl *)_render_target;
 		if (!render_target) {
@@ -1601,27 +1622,23 @@ bool init(InitInfo init_info) {
 	_draw_indexed = [](u32 index_count) {
 		state->immediate_context->DrawIndexed(index_count, 0, 0);
 	};
-	//_set_viewport = [](u32 x, u32 y, u32 w, u32 h) {
-	//	D3D11_VIEWPORT v = {
-	//		.TopLeftX = (FLOAT)x,
-	//		.TopLeftY = (FLOAT)y,
-	//		.Width = (FLOAT)w,
-	//		.Height = (FLOAT)h,
-	//		.MinDepth = 0,
-	//		.MaxDepth = 1,
-	//	};
-	//	state->immediate_context->RSSetViewports(1, &v);
-	//};
-	/*
-	_resize = [](RenderTarget *render_target, u32 w, u32 h) {
-		if (render_target == 0) {
-			state->back_buffer.color_target->Release();
-			state->back_buffer.depth_target->Release();
-			assert(SUCCEEDED(state->swap_chain->ResizeBuffers(1, w, h, DXGI_FORMAT_UNKNOWN, 0)));
-			create_back_buffer(w, h);
-		}
+	_set_viewport = [](Viewport viewport) {
+		D3D11_VIEWPORT v = {
+			.TopLeftX = (FLOAT)viewport.min.x,
+			.TopLeftY = (FLOAT)viewport.min.y,
+			.Width = (FLOAT)viewport.size().x,
+			.Height = (FLOAT)viewport.size().y,
+			.MinDepth = 0,
+			.MaxDepth = 1,
+		};
+		state->immediate_context->RSSetViewports(1, &v);
 	};
-	*/
+	_resize_render_targets = [](u32 w, u32 h) {
+		state->back_buffer.color_target->Release();
+		state->back_buffer.depth_target->Release();
+		assert(SUCCEEDED(state->swap_chain->ResizeBuffers(1, w, h, DXGI_FORMAT_UNKNOWN, 0)));
+		create_back_buffer(w, h);
+	};
 	_set_shader = [](Shader *_shader) {
 		auto &shader = *(ShaderImpl *)_shader;
 		state->immediate_context->VSSetShader(shader.vertex_shader, 0, 0);
@@ -1766,7 +1783,7 @@ bool init(InitInfo init_info) {
 	return true;
 }
 
-void free() {
+void deinit() {
 
 }
 
