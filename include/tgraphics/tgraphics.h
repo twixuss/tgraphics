@@ -99,7 +99,7 @@ enum : ClearFlags {
 struct RasterizerState {
 	u8 depth_test  : 1;
 	u8 depth_write : 1;
-	u8 depth_func  : ce::log2(ce::ceil_to_power_of_2(Comparison_count));
+	u8 depth_func  : log2(ceil_to_power_of_2(Comparison_count));
 	RasterizerState &set_depth_test (bool       value) { return depth_test  = value, *this; }
 	RasterizerState &set_depth_write(bool       value) { return depth_write = value, *this; }
 	RasterizerState &set_depth_func (Comparison value) { return depth_func  = value, *this; }
@@ -851,7 +851,7 @@ bool init(InitInfo init_info) {
 
 	//glEnable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_LESS);
-	
+
 	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		assert(_render_target);
 		auto &render_target = *(RenderTargetImpl *)_render_target;
