@@ -58,10 +58,6 @@ enum ElementType : u8 {
 	Element_f32x4,
 };
 
-struct CreateTexture2DParams {
-	bool resize_with_window = false;
-};
-
 enum Format : u8 {
 	Format_null,
 	Format_depth,
@@ -172,11 +168,23 @@ A(void, set_vertex_buffer, (VertexBuffer *buffer), (buffer)) \
 A(IndexBuffer *, create_index_buffer, (Span<u8> buffer, u32 index_size), (buffer, index_size)) \
 A(void, set_index_buffer, (IndexBuffer *buffer), (buffer)) \
 A(void, set_vsync, (bool enable), (enable)) \
-A(void, set_render_target, (RenderTarget *target), (target)) \
+\
+A(Texture2D *, create_texture_2d, (u32 width, u32 height, void const *data, Format format), (width, height, data, format)) \
+A(void,           set_texture_2d, (Texture2D *texture, u32 slot), (texture, slot)) \
+A(void,        resize_texture_2d, (Texture2D *texture, u32 w, u32 h), (texture, w, h)) \
+A(void,          read_texture_2d, (Texture2D *texture, Span<u8> data), (texture, data)) \
+A(void,        update_texture_2d, (Texture2D *texture, u32 width, u32 height, void *data), (texture, width, height, data)) \
+A(void,      generate_mipmaps_2d, (Texture2D *texture), (texture)) \
+\
+A(void, set_sampler, (Filtering filtering, Comparison comparison, u32 slot), (filtering, comparison, slot)) \
+\
 A(RenderTarget *, create_render_target, (Texture2D *color, Texture2D *depth), (color, depth)) \
-A(void, set_texture_2d, (Texture2D *texture, u32 slot), (texture, slot)) \
-A(void, set_texture_cube, (TextureCube *texture, u32 slot), (texture, slot)) \
-A(Texture2D *, create_texture_2d, (u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison, CreateTexture2DParams params), (width, height, data, format, filtering, comparison, params)) \
+A(void,              set_render_target, (RenderTarget *target), (target)) \
+\
+A(TextureCube *, create_texture_cube, (u32 size, void *data[6], Format format), (size, data, format)) \
+A(void,             set_texture_cube, (TextureCube *texture, u32 slot), (texture, slot)) \
+A(void,        generate_mipmaps_cube, (TextureCube *texture, GenerateCubeMipmapParams params), (texture, params)) \
+\
 A(ShaderConstants *, create_shader_constants, (umm size), (size))\
 A(void, set_shader_constants, (ShaderConstants *constants, u32 slot), (constants, slot)) \
 A(void, set_rasterizer, (RasterizerState state), (state)) \
@@ -184,25 +192,21 @@ A(RasterizerState, get_rasterizer, (), ()) \
 A(ComputeShader *, create_compute_shader, (Span<utf8> source), (source)) \
 A(void, set_compute_shader, (ComputeShader *shader), (shader)) \
 A(void, dispatch_compute_shader, (u32 x, u32 y, u32 z), (x, y, z)) \
-A(void, resize_texture_2d, (Texture2D *texture, u32 w, u32 h), (texture, w, h)) \
 A(ComputeBuffer *, create_compute_buffer, (u32 size), (size)) \
 A(void, read_compute_buffer, (ComputeBuffer *buffer, void *data), (buffer, data)) \
 A(void, set_compute_buffer, (ComputeBuffer *buffer, u32 slot), (buffer, slot)) \
 A(void, set_compute_texture, (Texture2D *texture, u32 slot), (texture, slot)) \
-A(void, read_texture, (Texture2D *texture, Span<u8> data), (texture, data)) \
 A(void, set_blend, (BlendFunction function, Blend source, Blend destination), (function, source, destination)) \
-A(TextureCube *, create_texture_cube, (u32 size, void *data[6], Format format, Filtering filtering, Comparison comparison), (size, data, format, filtering, comparison)) \
 A(void, set_topology, (Topology topology), (topology)) \
 A(void, update_vertex_buffer, (VertexBuffer *buffer, Span<u8> data), (buffer, data)) \
-A(void, update_texture, (Texture2D *texture, u32 width, u32 height, void *data), (texture, width, height, data)) \
-A(void, generate_mipmaps_2d, (Texture2D *texture), (texture)) \
-A(void, generate_mipmaps_cube, (TextureCube *texture, GenerateCubeMipmapParams params), (texture, params)) \
 A(void, set_scissor, (Viewport viewport), (viewport)) \
 A(void, disable_scissor, (), ()) \
 A(void *, map_shader_constants, (ShaderConstants *constants, Access access), (constants, access)) \
 A(void, unmap_shader_constants, (ShaderConstants *constants), (constants)) \
 A(void, set_cull, (Cull cull), (cull)) \
 A(void, disable_blend, (), ()) \
+A(void, disable_depth_clip, (), ()) \
+A(void, enable_depth_clip, (), ()) \
 
 #define A(ret, name, args, values) TGRAPHICS_API ret (*_##name) args;
 TGRAPHICS_APIS(A)
@@ -229,24 +233,8 @@ inline void update_shader_constants(ShaderConstants *constants, T const &source)
 	return _update_shader_constants(constants, {0, sizeof(source)}, &source);
 }
 
-inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison) {
-	return _create_texture_2d(width, height, data, format, filtering, comparison, {});
-}
-inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering, CreateTexture2DParams params) {
-	return _create_texture_2d(width, height, data, format, filtering, Comparison_none, params);
-}
-inline Texture2D *create_texture_2d(u32 width, u32 height, void *data, Format format, Filtering filtering) {
-	return _create_texture_2d(width, height, data, format, filtering, Comparison_none, {});
-}
-
-inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering, Comparison comparison) {
-	return _create_texture_2d(size.x, size.y, data, format, filtering, comparison, {});
-}
-inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering, CreateTexture2DParams params) {
-	return _create_texture_2d(size.x, size.y, data, format, filtering, Comparison_none, params);
-}
-inline Texture2D *create_texture_2d(v2u size, void *data, Format format, Filtering filtering) {
-	return _create_texture_2d(size.x, size.y, data, format, filtering, Comparison_none, {});
+inline Texture2D *create_texture_2d(v2u size, void const *data, Format format) {
+	return _create_texture_2d(size.x, size.y, data, format);
 }
 
 inline void set_texture(Texture2D *texture, u32 slot) {
@@ -257,8 +245,10 @@ inline void set_texture(TextureCube *texture, u32 slot) {
 }
 
 inline void update_texture(Texture2D *texture, v2u size, void *data) {
-	return _update_texture(texture, size.x, size.y, data);
+	return _update_texture_2d(texture, size.x, size.y, data);
 }
+
+inline void read_texture(Texture2D *texture, Span<u8> data) { return read_texture_2d(texture, data); }
 
 inline void generate_mipmaps(Texture2D *texture) {
 	return _generate_mipmaps_2d(texture);
@@ -298,18 +288,15 @@ struct LoadTextureParams {
 
 inline Texture2D *load_texture_2d(Span<u8> data, LoadTextureParams params = {}) {
 	auto pixels = load_pixels(data, {.flip_y = params.flip_y});
-	if (!pixels.data) {
+	if (!pixels.data)
 		return 0;
-	}
 	defer { pixels.free(pixels.data); };
-	auto filter = Filtering_linear;
-	if (params.generate_mipmaps) {
-		filter = Filtering_linear_mipmap;
-	}
-	auto result = _create_texture_2d(pixels.size.x, pixels.size.y, pixels.data, pixels.format, filter, Comparison_none, {});
-	if (params.generate_mipmaps) {
+
+	auto result = _create_texture_2d(pixels.size.x, pixels.size.y, pixels.data, pixels.format);
+
+	if (params.generate_mipmaps)
 		_generate_mipmaps_2d(result);
-	}
+
 	return result;
 }
 inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
@@ -367,7 +354,7 @@ inline TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams 
 			pixels[i].free(pixels[i].data);
 		}
 	};
-	auto result = _create_texture_cube(pixels[0].size.x, datas, pixels[0].format, Filtering_linear, Comparison_none);
+	auto result = _create_texture_cube(pixels[0].size.x, datas, pixels[0].format);
 	if (params.generate_mipmaps) {
 		_generate_mipmaps_cube(result, mipmap_params);
 	}
@@ -376,6 +363,8 @@ inline TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams 
 
 inline void resize_texture_2d(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
 inline void resize_texture(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
+
+inline void set_sampler(Filtering filtering, u32 slot) { return _set_sampler(filtering, {}, slot); }
 
 template <class T>
 struct TypedShaderConstants {
@@ -565,7 +554,6 @@ struct IndexBufferImpl : IndexBuffer {
 
 struct Texture {
 	GLuint texture;
-	GLuint sampler;
 	GLuint format;
 	GLuint internal_format;
 	GLuint type;
@@ -598,22 +586,21 @@ struct State {
 	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
 	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
 	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	StaticHashMap<SamplerKey, GLuint, 256> samplers;
 	IndexBufferImpl *current_index_buffer;
 	RenderTargetImpl back_buffer;
 	Texture2DImpl back_buffer_color;
 	Texture2DImpl back_buffer_depth;
 	RenderTargetImpl *currently_bound_render_target;
-	StaticHashMap<SamplerKey, GLuint, 256> samplers;
-	v2u window_size;
-	List<Texture2DImpl *> window_sized_textures;
 	RasterizerState rasterizer;
 	BlendFunction blend_function;
 	Blend blend_source;
 	Blend blend_destination;
 	GLuint topology = GL_TRIANGLES;
 	Cull cull = Cull_back;
-	bool scissor_enabled;
-	bool blend_enabled;
+	bool scissor_enabled = false;
+	bool blend_enabled = false;
+	bool depth_clip_enabled = true;
 };
 static State state;
 
@@ -840,8 +827,6 @@ bool init(InitInfo init_info) {
 
 	new (&state) State();
 
-	state.window_size = get_client_size(init_info.window);
-
 	back_buffer = &state.back_buffer;
 	state.back_buffer.color = &state.back_buffer_color;
 	state.back_buffer.depth = &state.back_buffer_depth;
@@ -885,12 +870,7 @@ bool init(InitInfo init_info) {
 		glViewport(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
 	};
 	_resize_render_targets = [](u32 width, u32 height) {
-		for (auto texture : state.window_sized_textures) {
-			if (texture) {
-				resize_texture_gl(texture, width, height);
-			}
-		}
-		state.window_size = state.back_buffer_color.size = state.back_buffer_depth.size = {width, height};
+		state.back_buffer_color.size = state.back_buffer_depth.size = {width, height};
 	};
 	_set_shader = [](Shader *_shader) {
 		assert(_shader);
@@ -1038,38 +1018,28 @@ bool init(InitInfo init_info) {
 
 		return &result;
 	};
+	_set_sampler = [](Filtering filtering, Comparison comparison, u32 slot) {
+		glActiveTexture(GL_TEXTURE0 + slot);
+		glBindSampler(slot, get_sampler(filtering, comparison));
+	};
 	_set_texture_2d = [](Texture2D *_texture, u32 slot) {
 		auto &texture = *(Texture2DImpl *)_texture;
 		glActiveTexture(GL_TEXTURE0 + slot);
-		if (_texture) {
-			glBindTexture(texture.target, texture.texture);
-			glBindSampler(slot, texture.sampler);
-		} else {
-			glBindTexture(texture.target, 0);
-			glBindSampler(slot, 0);
-		}
+		glBindTexture(texture.target, _texture ? texture.texture : 0);
 	};
 	_set_texture_cube = [](TextureCube *_texture, u32 slot) {
 		auto &texture = *(TextureCubeImpl *)_texture;
 		glActiveTexture(GL_TEXTURE0 + slot);
 		if (_texture) {
 			glBindTexture(texture.target, texture.texture);
-			glBindSampler(slot, texture.sampler);
 		} else {
 			glBindTexture(texture.target, 0);
-			glBindSampler(slot, 0);
 		}
 	};
-	_create_texture_2d = [](u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison, CreateTexture2DParams params) -> Texture2D * {
+	_create_texture_2d = [](u32 width, u32 height, void const *data, Format format) -> Texture2D * {
 		auto &result = state.textures_2d.add();
 
 		result.size = {width, height};
-
-		if (params.resize_with_window) {
-			state.window_sized_textures.add(&result);
-			width  = state.window_size.x;
-			height = state.window_size.y;
-		}
 
 		result.internal_format = get_internal_format(format);
 		result.format          = get_format(format);
@@ -1082,8 +1052,6 @@ bool init(InitInfo init_info) {
 		glTexImage2D(GL_TEXTURE_2D, 0, result.internal_format, width, height, 0, result.format, result.type, data);
 		glTexParameteri(GL_TEXTURE_2D,  GL_TEXTURE_MAX_LEVEL, 0);
 		glBindTexture(GL_TEXTURE_2D, 0);
-
-		result.sampler = get_sampler(filtering, comparison);
 
 		return &result;
 	};
@@ -1161,7 +1129,7 @@ bool init(InitInfo init_info) {
 		auto &texture = *(Texture2DImpl *)_texture;
 		glBindImageTexture(slot, texture.texture, 0, GL_FALSE, 0, GL_READ_ONLY, texture.internal_format);
 	};
-	_read_texture = [](Texture2D *_texture, Span<u8> data) {
+	_read_texture_2d = [](Texture2D *_texture, Span<u8> data) {
 		assert(_texture);
 		auto &texture = *(Texture2DImpl *)_texture;
 		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.size, data.data);
@@ -1188,7 +1156,9 @@ bool init(InitInfo init_info) {
 			glDisable(GL_BLEND);
 		}
 	};
-	_create_texture_cube = [](u32 size, void *data[6], Format format, Filtering filtering, Comparison comparison) -> TextureCube * {
+	_disable_depth_clip = []() { if ( state.depth_clip_enabled) { state.depth_clip_enabled = false; glEnable (GL_DEPTH_CLAMP); } };
+	_enable_depth_clip  = []() { if (!state.depth_clip_enabled) { state.depth_clip_enabled = true ; glDisable(GL_DEPTH_CLAMP); } };
+	_create_texture_cube = [](u32 size, void *data[6], Format format) -> TextureCube * {
 		auto &result = state.textures_cube.add();
 
 		// result.size = {width, height};
@@ -1206,8 +1176,6 @@ bool init(InitInfo init_info) {
 		}
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
-		result.sampler = get_sampler(filtering, comparison);
-
 		return &result;
 	};
 	_set_topology = [](Topology topology) {
@@ -1219,7 +1187,7 @@ bool init(InitInfo init_info) {
 		glBufferData(GL_ARRAY_BUFFER, data.size, data.data, GL_STATIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	};
-	_update_texture = [](Texture2D *_texture, u32 width, u32 height, void *data) {
+	_update_texture_2d = [](Texture2D *_texture, u32 width, u32 height, void *data) {
 		auto &texture = *(Texture2DImpl *)_texture;
 		glBindTexture(texture.target, texture.texture);
 		glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, data);
@@ -1294,8 +1262,6 @@ void deinit() {
 	Texture2DImpl back_buffer_depth;
 	RenderTargetImpl *currently_bound_render_target;
 	StaticHashMap<SamplerKey, GLuint, 256> samplers;
-	v2u window_size;
-	List<Texture2DImpl *> window_sized_textures;
 	RasterizerState rasterizer;
 	BlendFunction blend_function;
 	Blend blend_source;
@@ -1310,7 +1276,6 @@ void deinit() {
 	free(state.compute_shaders);
 	free(state.compute_buffers);
 	free(state.samplers);
-	free(state.window_sized_textures);
 }
 
 }
@@ -1357,35 +1322,45 @@ struct IndexBufferImpl : IndexBuffer {
 };
 
 struct RenderTargetImpl : RenderTarget {
-	ID3D11Texture2D *color_texture;
-	ID3D11Texture2D *depth_texture;
 	ID3D11RenderTargetView *color_target = 0;
 	ID3D11DepthStencilView *depth_target = 0;
+};
+
+struct ShaderConstantsImpl : ShaderConstants {
+	ID3D11Buffer *buffer = 0;
+};
+
+struct Texture2DImpl : Texture2D {
+	ID3D11Texture2D *texture = 0;
 };
 
 struct State {
 	ID3D11Device *device = 0;
 	ID3D11DeviceContext *immediate_context = 0;
 	RenderTargetImpl back_buffer;
+	Texture2DImpl back_buffer_color;
+	Texture2DImpl back_buffer_depth;
 	IDXGISwapChain *swap_chain = 0;
 	UINT sync_interval = 1;
 	MaskedBlockList<ShaderImpl, 256> shaders;
 	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
 	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
 	MaskedBlockList<RenderTargetImpl, 256> render_targets;
+	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	MaskedBlockList<Texture2DImpl, 256> textures_2d;
 	LinearSet<RenderTargetImpl *> render_targets_resized_with_window;
 	StaticHashMap<Span<ElementType>, InputLayout, 256> input_layouts;
 };
 
-static State *state;
+static State state;
 
 bool create_back_buffer(u32 width, u32 height) {
 	ID3D11Texture2D *back_buffer_texture = 0;
-	if (FAILED(state->swap_chain->GetBuffer(0, IID_PPV_ARGS(&back_buffer_texture)))) {
+	if (FAILED(state.swap_chain->GetBuffer(0, IID_PPV_ARGS(&back_buffer_texture)))) {
 		return false;
 	}
 
-	if (FAILED(state->device->CreateRenderTargetView(back_buffer_texture, 0, &state->back_buffer.color_target))) {
+	if (FAILED(state.device->CreateRenderTargetView(back_buffer_texture, 0, &state.back_buffer.color_target))) {
 		return false;
 	}
 	back_buffer_texture->Release();
@@ -1404,17 +1379,17 @@ bool create_back_buffer(u32 width, u32 height) {
 				.Usage = D3D11_USAGE_DEFAULT,
 				.BindFlags = D3D11_BIND_DEPTH_STENCIL,
 			};
-			assert(SUCCEEDED(state->device->CreateTexture2D(&desc, 0, &depth_texture)));
+			assert(SUCCEEDED(state.device->CreateTexture2D(&desc, 0, &depth_texture)));
 		}
 
 		D3D11_DEPTH_STENCIL_VIEW_DESC desc = {
 			.Format = format,
 			.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D,
 		};
-		assert(SUCCEEDED(state->device->CreateDepthStencilView(depth_texture, &desc, &state->back_buffer.depth_target)));
+		assert(SUCCEEDED(state.device->CreateDepthStencilView(depth_texture, &desc, &state.back_buffer.depth_target)));
 	}
 
-	state->immediate_context->OMSetRenderTargets(1, &state->back_buffer.color_target, state->back_buffer.depth_target);
+	state.immediate_context->OMSetRenderTargets(1, &state.back_buffer.color_target, state.back_buffer.depth_target);
 	return true;
 }
 
@@ -1474,7 +1449,7 @@ ID3DBlob *compile_shader(Span<utf8> source, char const *name, char const *entry,
 }
 
 InputLayout *get_input_layout(Span<ElementType> vertex_descriptor) {
-	auto &result = state->input_layouts.get_or_insert(vertex_descriptor);
+	auto &result = state.input_layouts.get_or_insert(vertex_descriptor);
 
 	if (!result.layout) {
 		List<D3D11_INPUT_ELEMENT_DESC> element_descs;
@@ -1501,7 +1476,7 @@ InputLayout *get_input_layout(Span<ElementType> vertex_descriptor) {
 
 		ID3DBlob *vertex_shader_bytecode = compile_shader((List<utf8>)to_string(shader_builder), "input_layout", "main", "vs_5_0");
 
-		assert(SUCCEEDED(state->device->CreateInputLayout(element_descs.data, vertex_descriptor.size, vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), &result.layout)));
+		assert(SUCCEEDED(state.device->CreateInputLayout(element_descs.data, vertex_descriptor.size, vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), &result.layout)));
 	}
 
 	return &result;
@@ -1516,8 +1491,6 @@ DXGI_FORMAT get_format(Format format) {
 }
 
 bool init(InitInfo init_info) {
-	state = current_allocator.allocate<State>();
-
 	IDXGIFactory *factory = 0;
 	if (FAILED(CreateDXGIFactory(IID_PPV_ARGS(&factory)))) {
 		return false;
@@ -1546,7 +1519,7 @@ bool init(InitInfo init_info) {
 		return false;
 	}
 
-	if (FAILED(D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, 0, init_info.debug ? D3D11_CREATE_DEVICE_DEBUG : 0, 0, 0, D3D11_SDK_VERSION, &state->device, 0, &state->immediate_context))) {
+	if (FAILED(D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, 0, init_info.debug ? D3D11_CREATE_DEVICE_DEBUG : 0, 0, 0, D3D11_SDK_VERSION, &state.device, 0, &state.immediate_context))) {
 		return false;
 	}
 
@@ -1569,7 +1542,7 @@ bool init(InitInfo init_info) {
 		.Windowed = true,
 	};
 
-	if (FAILED(factory->CreateSwapChain(state->device, &desc, &state->swap_chain))) {
+	if (FAILED(factory->CreateSwapChain(state.device, &desc, &state.swap_chain))) {
 		return false;
 	}
 
@@ -1577,7 +1550,11 @@ bool init(InitInfo init_info) {
 		return false;
 	}
 
-	state->immediate_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	back_buffer = &state.back_buffer;
+	state.back_buffer.color = &state.back_buffer_color;
+	state.back_buffer.depth = &state.back_buffer_depth;
+
+	state.immediate_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	ID3D11RasterizerState *rasterizer_state = 0;
 	{
@@ -1586,11 +1563,11 @@ bool init(InitInfo init_info) {
 			.CullMode = D3D11_CULL_FRONT,
 			.AntialiasedLineEnable = false,
 		};
-		if (FAILED(state->device->CreateRasterizerState(&desc, &rasterizer_state))) {
+		if (FAILED(state.device->CreateRasterizerState(&desc, &rasterizer_state))) {
 			return false;
 		}
 	}
-	state->immediate_context->RSSetState(rasterizer_state);
+	state.immediate_context->RSSetState(rasterizer_state);
 
 	ID3D11DepthStencilState *depth_state = 0;
 	{
@@ -1599,28 +1576,28 @@ bool init(InitInfo init_info) {
 			.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
 			.DepthFunc = D3D11_COMPARISON_LESS,
 		};
-		if (FAILED(state->device->CreateDepthStencilState(&desc, &depth_state))) {
+		if (FAILED(state.device->CreateDepthStencilState(&desc, &depth_state))) {
 			return false;
 		}
 	}
-	state->immediate_context->OMSetDepthStencilState(depth_state, 0);
+	state.immediate_context->OMSetDepthStencilState(depth_state, 0);
 
 	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		auto render_target = (RenderTargetImpl *)_render_target;
 		if (!render_target) {
-			render_target = &state->back_buffer;
+			render_target = &state.back_buffer;
 		}
-		if (flags & ClearFlags_color) state->immediate_context->ClearRenderTargetView(render_target->color_target, color.s);
-		if (flags & ClearFlags_depth) state->immediate_context->ClearDepthStencilView(render_target->depth_target, D3D11_CLEAR_DEPTH, depth, 0);
+		if (flags & ClearFlags_color) state.immediate_context->ClearRenderTargetView(render_target->color_target, color.s);
+		if (flags & ClearFlags_depth) state.immediate_context->ClearDepthStencilView(render_target->depth_target, D3D11_CLEAR_DEPTH, depth, 0);
 	};
 	_present = []() {
-		assert(SUCCEEDED(state->swap_chain->Present(state->sync_interval, 0)));
+		assert(SUCCEEDED(state.swap_chain->Present(state.sync_interval, 0)));
 	};
 	_draw = [](u32 vertex_count, u32 start_vertex) {
-		state->immediate_context->Draw(vertex_count, start_vertex);
+		state.immediate_context->Draw(vertex_count, start_vertex);
 	};
 	_draw_indexed = [](u32 index_count) {
-		state->immediate_context->DrawIndexed(index_count, 0, 0);
+		state.immediate_context->DrawIndexed(index_count, 0, 0);
 	};
 	_set_viewport = [](Viewport viewport) {
 		D3D11_VIEWPORT v = {
@@ -1631,37 +1608,37 @@ bool init(InitInfo init_info) {
 			.MinDepth = 0,
 			.MaxDepth = 1,
 		};
-		state->immediate_context->RSSetViewports(1, &v);
+		state.immediate_context->RSSetViewports(1, &v);
 	};
-	_resize_render_targets = [](u32 w, u32 h) {
-		state->back_buffer.color_target->Release();
-		state->back_buffer.depth_target->Release();
-		assert(SUCCEEDED(state->swap_chain->ResizeBuffers(1, w, h, DXGI_FORMAT_UNKNOWN, 0)));
-		create_back_buffer(w, h);
+	_resize_render_targets = [](u32 width, u32 height) {
+		state.back_buffer.color_target->Release();
+		state.back_buffer.depth_target->Release();
+		assert(SUCCEEDED(state.swap_chain->ResizeBuffers(1, width, height, DXGI_FORMAT_UNKNOWN, 0)));
+		create_back_buffer(width, height);
 	};
 	_set_shader = [](Shader *_shader) {
 		auto &shader = *(ShaderImpl *)_shader;
-		state->immediate_context->VSSetShader(shader.vertex_shader, 0, 0);
-		state->immediate_context->VSSetConstantBuffers(0, 1, &shader.constant_buffer);
+		state.immediate_context->VSSetShader(shader.vertex_shader, 0, 0);
+		state.immediate_context->VSSetConstantBuffers(0, 1, &shader.constant_buffer);
 
-		state->immediate_context->PSSetShader(shader.pixel_shader, 0, 0);
-		state->immediate_context->PSSetConstantBuffers(0, 1, &shader.constant_buffer);
+		state.immediate_context->PSSetShader(shader.pixel_shader, 0, 0);
+		state.immediate_context->PSSetConstantBuffers(0, 1, &shader.constant_buffer);
 	};
 	//_set_value = [](Shader *_shader, ShaderValueLocation dest, void const *source) {
 	//	auto &shader = *(ShaderImpl *)_shader;
 	//	memcpy((u8 *)shader.constant_buffer_data + dest.start, source, dest.size);
-	//	state->immediate_context->UpdateSubresource(shader.constant_buffer, 0, 0, shader.constant_buffer_data, 0, 0);
+	//	state.immediate_context->UpdateSubresource(shader.constant_buffer, 0, 0, shader.constant_buffer_data, 0, 0);
 	//};
 	_create_shader = [](Span<utf8> source) -> Shader * {
-		auto &shader = state->shaders.add();
+		auto &shader = state.shaders.add();
 		if (&shader) {
 			ID3DBlob *vertex_shader_bytecode = compile_shader(source, "vertex_shader", "vertex_main", "vs_5_0");
-			if (FAILED(state->device->CreateVertexShader(vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), 0, &shader.vertex_shader))) {
+			if (FAILED(state.device->CreateVertexShader(vertex_shader_bytecode->GetBufferPointer(), vertex_shader_bytecode->GetBufferSize(), 0, &shader.vertex_shader))) {
 				return false;
 			}
 
 			ID3DBlob *pixel_shader_bytecode = compile_shader(source, "pixel_shader", "pixel_main", "ps_5_0");
-			if (FAILED(state->device->CreatePixelShader(pixel_shader_bytecode->GetBufferPointer(), pixel_shader_bytecode->GetBufferSize(), 0, &shader.pixel_shader))) {
+			if (FAILED(state.device->CreatePixelShader(pixel_shader_bytecode->GetBufferPointer(), pixel_shader_bytecode->GetBufferSize(), 0, &shader.pixel_shader))) {
 				return false;
 			}
 
@@ -1671,7 +1648,7 @@ bool init(InitInfo init_info) {
 			//		.Usage = D3D11_USAGE_DEFAULT,
 			//		.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
 			//	};
-			//	if (FAILED(state->device->CreateBuffer(&desc, 0, &shader.constant_buffer))) {
+			//	if (FAILED(state.device->CreateBuffer(&desc, 0, &shader.constant_buffer))) {
 			//		return false;
 			//	}
 			//
@@ -1687,8 +1664,52 @@ bool init(InitInfo init_info) {
 					* m4::translation(-position);
 		return result;
 	};
+	_create_shader_constants = [](umm size) -> ShaderConstants * {
+		auto &result = state.shader_constants.add();
+
+		D3D11_BUFFER_DESC desc = {
+			.ByteWidth = (UINT)size,
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+		};
+
+		assert(SUCCEEDED(state.device->CreateBuffer(&desc, 0, &result.buffer)));
+
+		return &result;
+	};
+	_set_shader_constants = [](ShaderConstants *_constants, u32 slot) {
+		assert(_constants);
+		auto &constants = *(ShaderConstantsImpl *)_constants;
+		state.immediate_context->VSSetConstantBuffers(slot, 1, &constants.buffer);
+		state.immediate_context->PSSetConstantBuffers(slot, 1, &constants.buffer);
+	};
+	/*
+	_create_texture_2d = [](u32 width, u32 height, void *data, Format format, Filtering filtering, Comparison comparison) -> Texture2D * {
+		auto &result = state.textures_2d.add();
+
+		result.size = {width, height};
+
+		state.device->CreateTexture2D(&desc, &initial_data, &result.texture);
+
+		result.internal_format = get_internal_format(format);
+		result.format          = get_format(format);
+		result.type            = get_type(format);
+		result.bytes_per_texel = get_bytes_per_texel(format);
+		result.target = GL_TEXTURE_2D;
+
+		glGenTextures(1, &result.texture);
+		glBindTexture(GL_TEXTURE_2D, result.texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, result.internal_format, width, height, 0, result.format, result.type, data);
+		glTexParameteri(GL_TEXTURE_2D,  GL_TEXTURE_MAX_LEVEL, 0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		result.sampler = get_sampler(filtering, comparison);
+
+		return &result;
+	};
+	*/
 	_create_vertex_buffer = [](Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
-		VertexBufferImpl &result = state->vertex_buffers.add();
+		VertexBufferImpl &result = state.vertex_buffers.add();
 
 		result.layout = get_input_layout(vertex_descriptor);
 
@@ -1703,18 +1724,18 @@ bool init(InitInfo init_info) {
 			.pSysMem = buffer.data,
 		};
 
-		assert(SUCCEEDED(state->device->CreateBuffer(&desc, &initial_data, &result.buffer)));
+		assert(SUCCEEDED(state.device->CreateBuffer(&desc, &initial_data, &result.buffer)));
 
 		return &result;
 	};
 	_set_vertex_buffer = [](VertexBuffer *_buffer) {
 		auto buffer = (VertexBufferImpl *)_buffer;
 		UINT offset = 0;
-		state->immediate_context->IASetVertexBuffers(0, 1, &buffer->buffer, &buffer->layout->stride, &offset);
-		state->immediate_context->IASetInputLayout(buffer->layout->layout);
+		state.immediate_context->IASetVertexBuffers(0, 1, &buffer->buffer, &buffer->layout->stride, &offset);
+		state.immediate_context->IASetInputLayout(buffer->layout->layout);
 	};
 	_create_index_buffer = [](Span<u8> buffer, u32 index_size) -> IndexBuffer * {
-		IndexBufferImpl &result = state->index_buffers.add();
+		IndexBufferImpl &result = state.index_buffers.add();
 
 		result.format = get_index_format_from_size(index_size);
 
@@ -1728,31 +1749,31 @@ bool init(InitInfo init_info) {
 			.pSysMem = buffer.data,
 		};
 
-		assert(SUCCEEDED(state->device->CreateBuffer(&desc, &initial_data, &result.buffer)));
+		assert(SUCCEEDED(state.device->CreateBuffer(&desc, &initial_data, &result.buffer)));
 
 		return &result;
 	};
 	_set_index_buffer = [](IndexBuffer *_buffer) {
 		auto buffer = (IndexBufferImpl *)_buffer;
-		state->immediate_context->IASetIndexBuffer(buffer->buffer, buffer->format, 0);
+		state.immediate_context->IASetIndexBuffer(buffer->buffer, buffer->format, 0);
 	};
 	_set_vsync = [](bool enable) {
-		state->sync_interval = enable ? 1 : 0;
+		state.sync_interval = enable ? 1 : 0;
 	};
 	_set_render_target = [](RenderTarget *_target) {
 		auto target = (RenderTargetImpl *)_target;
 		if (!target)
-			target = &state->back_buffer;
-		state->immediate_context->OMSetRenderTargets(1, &target->color_target, target->depth_target);
+			target = &state.back_buffer;
+		state.immediate_context->OMSetRenderTargets(1, &target->color_target, target->depth_target);
 	};
 	/*
 	_create_render_target = [](CreateRenderTargetFlags flags, Format _format, Filtering filtering, TextureComparison comparison, u32 width, u32 height) -> RenderTarget * {
-		auto &result = state->render_targets.add();
+		auto &result = state.render_targets.add();
 
 		auto format = get_format(_format);
 
 		if (flags & CreateRenderTarget_resize_with_window) {
-			state->render_targets_resized_with_window.insert(&result);
+			state.render_targets_resized_with_window.insert(&result);
 		}
 
 		{
@@ -1766,14 +1787,14 @@ bool init(InitInfo init_info) {
 				.Usage = D3D11_USAGE_DEFAULT,
 				.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
 			};
-			assert(SUCCEEDED(state->device->CreateTexture2D(&desc, 0, &result.color_texture)));
+			assert(SUCCEEDED(state.device->CreateTexture2D(&desc, 0, &result.color_texture)));
 		}
 		{
 			D3D11_RENDER_TARGET_VIEW_DESC desc = {
 				.Format = format,
 				.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D,
 			};
-			assert(SUCCEEDED(state->device->CreateRenderTargetView(result.color_texture, &desc, &result.color_target)));
+			assert(SUCCEEDED(state.device->CreateRenderTargetView(result.color_texture, &desc, &result.color_target)));
 		}
 
 		return &result;
