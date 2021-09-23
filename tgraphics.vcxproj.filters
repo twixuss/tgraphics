@@ -4,6 +4,9 @@
     <ClInclude Include="include\tgraphics\tgraphics.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\test.cpp" />
+    <ClCompile Include="source\generator.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="dep\tl\tl.natvis" />
   </ItemGroup>
 </Project>

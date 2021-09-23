@@ -25,7 +25,7 @@ enum GraphicsApi {
 struct InitInfo {
 	NativeWindowHandle window = {};
 	bool debug = false;
-	bool dont_check_apis = false;
+	bool check_apis = true;
 };
 
 struct Texture2D : TGRAPHICS_TEXTURE_2D_EXTENSION {
@@ -38,14 +38,18 @@ struct RenderTarget {
 struct Shader {};
 struct VertexBuffer {};
 struct IndexBuffer {};
+
+
 struct ShaderConstants {};
+
+template <class T>
+struct TypedShaderConstants {
+	ShaderConstants *constants;
+};
+
+
 struct ComputeShader {};
 struct ComputeBuffer {};
-
-struct ShaderValueLocation {
-	umm start;
-	umm size;
-};
 
 struct CameraMatrices {
 	m4 mvp;
@@ -152,114 +156,6 @@ enum Cull : u8 {
 	Cull_front,
 };
 
-#define TGRAPHICS_APIS(A) \
-A(void, clear, (RenderTarget *render_target, ClearFlags flags, v4f color, f32 depth), (render_target, flags, color, depth)) \
-A(void, present, (), ()) \
-A(void, draw, (u32 vertex_count, u32 start_vertex), (vertex_count, start_vertex)) \
-A(void, draw_indexed, (u32 index_count), (index_count)) \
-A(void, set_viewport, (Viewport viewport), (viewport)) \
-A(void, resize_render_targets, (u32 w, u32 h), (w, h)) \
-A(void, set_shader, (Shader *shader), (shader)) \
-A(void, update_shader_constants, (ShaderConstants *constants, ShaderValueLocation dest, void const *source), (constants, dest, source)) \
-A(Shader *, create_shader, (Span<utf8> source), (source)) \
-A(CameraMatrices, calculate_perspective_matrices, (v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane), (position, rotation, aspect_ratio, fov_radians, near_plane, far_plane)) \
-A(VertexBuffer *, create_vertex_buffer, (Span<u8> buffer, Span<ElementType> vertex_descriptor), (buffer, vertex_descriptor)) \
-A(void, set_vertex_buffer, (VertexBuffer *buffer), (buffer)) \
-A(IndexBuffer *, create_index_buffer, (Span<u8> buffer, u32 index_size), (buffer, index_size)) \
-A(void, set_index_buffer, (IndexBuffer *buffer), (buffer)) \
-A(void, set_vsync, (bool enable), (enable)) \
-\
-A(Texture2D *, create_texture_2d, (u32 width, u32 height, void const *data, Format format), (width, height, data, format)) \
-A(void,           set_texture_2d, (Texture2D *texture, u32 slot), (texture, slot)) \
-A(void,        resize_texture_2d, (Texture2D *texture, u32 w, u32 h), (texture, w, h)) \
-A(void,          read_texture_2d, (Texture2D *texture, Span<u8> data), (texture, data)) \
-A(void,        update_texture_2d, (Texture2D *texture, u32 width, u32 height, void *data), (texture, width, height, data)) \
-A(void,      generate_mipmaps_2d, (Texture2D *texture), (texture)) \
-\
-A(void, set_sampler, (Filtering filtering, Comparison comparison, u32 slot), (filtering, comparison, slot)) \
-\
-A(RenderTarget *, create_render_target, (Texture2D *color, Texture2D *depth), (color, depth)) \
-A(void,              set_render_target, (RenderTarget *target), (target)) \
-\
-A(TextureCube *, create_texture_cube, (u32 size, void *data[6], Format format), (size, data, format)) \
-A(void,             set_texture_cube, (TextureCube *texture, u32 slot), (texture, slot)) \
-A(void,        generate_mipmaps_cube, (TextureCube *texture, GenerateCubeMipmapParams params), (texture, params)) \
-\
-A(ShaderConstants *, create_shader_constants, (umm size), (size))\
-A(void, set_shader_constants, (ShaderConstants *constants, u32 slot), (constants, slot)) \
-A(void, set_rasterizer, (RasterizerState state), (state)) \
-A(RasterizerState, get_rasterizer, (), ()) \
-A(ComputeShader *, create_compute_shader, (Span<utf8> source), (source)) \
-A(void, set_compute_shader, (ComputeShader *shader), (shader)) \
-A(void, dispatch_compute_shader, (u32 x, u32 y, u32 z), (x, y, z)) \
-A(ComputeBuffer *, create_compute_buffer, (u32 size), (size)) \
-A(void, read_compute_buffer, (ComputeBuffer *buffer, void *data), (buffer, data)) \
-A(void, set_compute_buffer, (ComputeBuffer *buffer, u32 slot), (buffer, slot)) \
-A(void, set_compute_texture, (Texture2D *texture, u32 slot), (texture, slot)) \
-A(void, set_blend, (BlendFunction function, Blend source, Blend destination), (function, source, destination)) \
-A(void, set_topology, (Topology topology), (topology)) \
-A(void, update_vertex_buffer, (VertexBuffer *buffer, Span<u8> data), (buffer, data)) \
-A(void, set_scissor, (Viewport viewport), (viewport)) \
-A(void, disable_scissor, (), ()) \
-A(void *, map_shader_constants, (ShaderConstants *constants, Access access), (constants, access)) \
-A(void, unmap_shader_constants, (ShaderConstants *constants), (constants)) \
-A(void, set_cull, (Cull cull), (cull)) \
-A(void, disable_blend, (), ()) \
-A(void, disable_depth_clip, (), ()) \
-A(void, enable_depth_clip, (), ()) \
-
-#define A(ret, name, args, values) TGRAPHICS_API ret (*_##name) args;
-TGRAPHICS_APIS(A)
-#undef A
-
-#define A(ret, name, args, values) inline ret name args { return _##name values; }
-TGRAPHICS_APIS(A)
-#undef A
-
-TGRAPHICS_API RenderTarget *back_buffer;
-TGRAPHICS_API v2u min_texture_size;
-
-inline void draw(u32 vertex_count) { return _draw(vertex_count, 0); }
-inline void set_viewport(u32 w, u32 h) { return _set_viewport({.min = {}, .max = {(s32)w, (s32)h}}); }
-inline void set_viewport(v2u size) { return _set_viewport({.min={}, .max=(v2s)size}); }
-inline void resize_render_targets(v2u size) { return _resize_render_targets(size.x, size.y); }
-template <class T>
-inline void update_shader_constants(ShaderConstants *constants, ShaderValueLocation dest, T const &source) {
-	assert(sizeof(source) == dest.size);
-	return _update_shader_constants(constants, dest, &source);
-}
-template <class T>
-inline void update_shader_constants(ShaderConstants *constants, T const &source) {
-	return _update_shader_constants(constants, {0, sizeof(source)}, &source);
-}
-
-inline Texture2D *create_texture_2d(v2u size, void const *data, Format format) {
-	return _create_texture_2d(size.x, size.y, data, format);
-}
-
-inline void set_texture(Texture2D *texture, u32 slot) {
-	return _set_texture_2d(texture, slot);
-}
-inline void set_texture(TextureCube *texture, u32 slot) {
-	return _set_texture_cube(texture, slot);
-}
-
-inline void update_texture(Texture2D *texture, v2u size, void *data) {
-	return _update_texture_2d(texture, size.x, size.y, data);
-}
-
-inline void read_texture(Texture2D *texture, Span<u8> data) { return read_texture_2d(texture, data); }
-
-inline void generate_mipmaps(Texture2D *texture) {
-	return _generate_mipmaps_2d(texture);
-}
-inline void generate_mipmaps(TextureCube *texture, GenerateCubeMipmapParams params) {
-	return _generate_mipmaps_cube(texture, params);
-}
-inline void generate_mipmaps(TextureCube *texture) {
-	return _generate_mipmaps_cube(texture, {});
-}
-
 struct Pixels {
 	void *data;
 	v2u size;
@@ -271,7 +167,14 @@ struct LoadPixelsParams {
 	bool flip_y = false;
 };
 
+struct LoadTextureParams {
+	bool generate_mipmaps = false;
+	bool flip_y = false;
+};
+
+
 TGRAPHICS_API Pixels load_pixels(Span<u8> data, LoadPixelsParams params = {});
+
 inline Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params = {}) {
 	auto file = read_entire_file(path);
 	if (!file.data) {
@@ -281,136 +184,267 @@ inline Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params = {}) {
 	return load_pixels(file, params);
 }
 
-struct LoadTextureParams {
-	bool generate_mipmaps = false;
-	bool flip_y = false;
-};
+struct State {
+	Allocator allocator;
 
-inline Texture2D *load_texture_2d(Span<u8> data, LoadTextureParams params = {}) {
-	auto pixels = load_pixels(data, {.flip_y = params.flip_y});
-	if (!pixels.data)
-		return 0;
-	defer { pixels.free(pixels.data); };
+	GraphicsApi api;
 
-	auto result = _create_texture_2d(pixels.size.x, pixels.size.y, pixels.data, pixels.format);
+	RenderTarget *back_buffer;
+	v2u min_texture_size;
 
-	if (params.generate_mipmaps)
-		_generate_mipmaps_2d(result);
+	void (*_clear)(State *_state, RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth);
+	void clear(RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth) { return _clear(this, render_target, flags, color, depth); }
+	void (*_present)(State *_state);
+	void present() { return _present(this); }
+	void (*_draw)(State *_state, u32 vertex_count, u32 start_vertex);
+	void draw(u32 vertex_count, u32 start_vertex) { return _draw(this, vertex_count, start_vertex); }
+	void (*_draw_indexed)(State *_state, u32 index_count);
+	void draw_indexed(u32 index_count) { return _draw_indexed(this, index_count); }
+	void (*_set_viewport)(State *_state, Viewport viewport);
+	void set_viewport(Viewport viewport) { return _set_viewport(this, viewport); }
+	void (*_resize_render_targets)(State *_state, u32 w, u32 h);
+	void resize_render_targets(u32 w, u32 h) { return _resize_render_targets(this, w, h); }
+	void (*_set_shader)(State *_state, Shader * shader);
+	void set_shader(Shader * shader) { return _set_shader(this, shader); }
+	void (*_update_shader_constants)(State *_state, ShaderConstants * constants, void const * source, u32 offset, u32 size);
+	void update_shader_constants(ShaderConstants * constants, void const * source, u32 offset, u32 size) { return _update_shader_constants(this, constants, source, offset, size); }
+	Shader * (*_create_shader)(State *_state, Span<utf8> source);
+	Shader * create_shader(Span<utf8> source) { return _create_shader(this, source); }
+	CameraMatrices (*_calculate_perspective_matrices)(State *_state, v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane);
+	CameraMatrices calculate_perspective_matrices(v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane) { return _calculate_perspective_matrices(this, position, rotation, aspect_ratio, fov_radians, near_plane, far_plane); }
+	VertexBuffer * (*_create_vertex_buffer)(State *_state, Span<u8> buffer, Span<ElementType> vertex_descriptor);
+	VertexBuffer * create_vertex_buffer(Span<u8> buffer, Span<ElementType> vertex_descriptor) { return _create_vertex_buffer(this, buffer, vertex_descriptor); }
+	void (*_set_vertex_buffer)(State *_state, VertexBuffer * buffer);
+	void set_vertex_buffer(VertexBuffer * buffer) { return _set_vertex_buffer(this, buffer); }
+	IndexBuffer * (*_create_index_buffer)(State *_state, Span<u8> buffer, u32 index_size);
+	IndexBuffer * create_index_buffer(Span<u8> buffer, u32 index_size) { return _create_index_buffer(this, buffer, index_size); }
+	void (*_set_index_buffer)(State *_state, IndexBuffer * buffer);
+	void set_index_buffer(IndexBuffer * buffer) { return _set_index_buffer(this, buffer); }
+	void (*_set_vsync)(State *_state, bool enable);
+	void set_vsync(bool enable) { return _set_vsync(this, enable); }
+	Texture2D * (*_create_texture_2d)(State *_state, u32 width, u32 height, void const * data, Format format);
+	Texture2D * create_texture_2d(u32 width, u32 height, void const * data, Format format) { return _create_texture_2d(this, width, height, data, format); }
+	void (*_set_texture_2d)(State *_state, Texture2D * texture, u32 slot);
+	void set_texture_2d(Texture2D * texture, u32 slot) { return _set_texture_2d(this, texture, slot); }
+	void (*_resize_texture_2d)(State *_state, Texture2D * texture, u32 w, u32 h);
+	void resize_texture_2d(Texture2D * texture, u32 w, u32 h) { return _resize_texture_2d(this, texture, w, h); }
+	void (*_read_texture_2d)(State *_state, Texture2D * texture, Span<u8> data);
+	void read_texture_2d(Texture2D * texture, Span<u8> data) { return _read_texture_2d(this, texture, data); }
+	void (*_update_texture_2d)(State *_state, Texture2D * texture, u32 width, u32 height, void * data);
+	void update_texture_2d(Texture2D * texture, u32 width, u32 height, void * data) { return _update_texture_2d(this, texture, width, height, data); }
+	void (*_generate_mipmaps_2d)(State *_state, Texture2D * texture);
+	void generate_mipmaps_2d(Texture2D * texture) { return _generate_mipmaps_2d(this, texture); }
+	void (*_set_sampler)(State *_state, Filtering filtering, Comparison comparison, u32 slot);
+	void set_sampler(Filtering filtering, Comparison comparison, u32 slot) { return _set_sampler(this, filtering, comparison, slot); }
+	RenderTarget * (*_create_render_target)(State *_state, Texture2D * color, Texture2D * depth);
+	RenderTarget * create_render_target(Texture2D * color, Texture2D * depth) { return _create_render_target(this, color, depth); }
+	void (*_set_render_target)(State *_state, RenderTarget * target);
+	void set_render_target(RenderTarget * target) { return _set_render_target(this, target); }
+	TextureCube * (*_create_texture_cube)(State *_state, u32 size, void ** data, Format format);
+	TextureCube * create_texture_cube(u32 size, void ** data, Format format) { return _create_texture_cube(this, size, data, format); }
+	void (*_set_texture_cube)(State *_state, TextureCube * texture, u32 slot);
+	void set_texture_cube(TextureCube * texture, u32 slot) { return _set_texture_cube(this, texture, slot); }
+	void (*_generate_mipmaps_cube)(State *_state, TextureCube * texture, GenerateCubeMipmapParams params);
+	void generate_mipmaps_cube(TextureCube * texture, GenerateCubeMipmapParams params) { return _generate_mipmaps_cube(this, texture, params); }
+	ShaderConstants * (*_create_shader_constants)(State *_state, umm size);
+	ShaderConstants * create_shader_constants(umm size) { return _create_shader_constants(this, size); }
+	void (*_set_shader_constants)(State *_state, ShaderConstants * constants, u32 slot);
+	void set_shader_constants(ShaderConstants * constants, u32 slot) { return _set_shader_constants(this, constants, slot); }
+	void (*_set_rasterizer)(State *_state, RasterizerState state);
+	void set_rasterizer(RasterizerState state) { return _set_rasterizer(this, state); }
+	RasterizerState (*_get_rasterizer)(State *_state);
+	RasterizerState get_rasterizer() { return _get_rasterizer(this); }
+	ComputeShader * (*_create_compute_shader)(State *_state, Span<utf8> source);
+	ComputeShader * create_compute_shader(Span<utf8> source) { return _create_compute_shader(this, source); }
+	void (*_set_compute_shader)(State *_state, ComputeShader * shader);
+	void set_compute_shader(ComputeShader * shader) { return _set_compute_shader(this, shader); }
+	void (*_dispatch_compute_shader)(State *_state, u32 x, u32 y, u32 z);
+	void dispatch_compute_shader(u32 x, u32 y, u32 z) { return _dispatch_compute_shader(this, x, y, z); }
+	ComputeBuffer * (*_create_compute_buffer)(State *_state, u32 size);
+	ComputeBuffer * create_compute_buffer(u32 size) { return _create_compute_buffer(this, size); }
+	void (*_read_compute_buffer)(State *_state, ComputeBuffer * buffer, void * data);
+	void read_compute_buffer(ComputeBuffer * buffer, void * data) { return _read_compute_buffer(this, buffer, data); }
+	void (*_set_compute_buffer)(State *_state, ComputeBuffer * buffer, u32 slot);
+	void set_compute_buffer(ComputeBuffer * buffer, u32 slot) { return _set_compute_buffer(this, buffer, slot); }
+	void (*_set_compute_texture)(State *_state, Texture2D * texture, u32 slot);
+	void set_compute_texture(Texture2D * texture, u32 slot) { return _set_compute_texture(this, texture, slot); }
+	void (*_set_blend)(State *_state, BlendFunction function, Blend source, Blend destination);
+	void set_blend(BlendFunction function, Blend source, Blend destination) { return _set_blend(this, function, source, destination); }
+	void (*_set_topology)(State *_state, Topology topology);
+	void set_topology(Topology topology) { return _set_topology(this, topology); }
+	void (*_update_vertex_buffer)(State *_state, VertexBuffer * buffer, Span<u8> data);
+	void update_vertex_buffer(VertexBuffer * buffer, Span<u8> data) { return _update_vertex_buffer(this, buffer, data); }
+	void (*_set_scissor)(State *_state, Viewport viewport);
+	void set_scissor(Viewport viewport) { return _set_scissor(this, viewport); }
+	void (*_disable_scissor)(State *_state);
+	void disable_scissor() { return _disable_scissor(this); }
+	void * (*_map_shader_constants)(State *_state, ShaderConstants * constants, Access access);
+	void * map_shader_constants(ShaderConstants * constants, Access access) { return _map_shader_constants(this, constants, access); }
+	void (*_unmap_shader_constants)(State *_state, ShaderConstants * constants);
+	void unmap_shader_constants(ShaderConstants * constants) { return _unmap_shader_constants(this, constants); }
+	void (*_set_cull)(State *_state, Cull cull);
+	void set_cull(Cull cull) { return _set_cull(this, cull); }
+	void (*_disable_blend)(State *_state);
+	void disable_blend() { return _disable_blend(this); }
+	void (*_disable_depth_clip)(State *_state);
+	void disable_depth_clip() { return _disable_depth_clip(this); }
+	void (*_enable_depth_clip)(State *_state);
+	void enable_depth_clip() { return _enable_depth_clip(this); }
 
-	return result;
-}
-inline Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
-	auto file = read_entire_file(path);
-	if (!file.data) {
-		print(Print_error, "Failed to read file %.\n", path);
-		return {};
+
+	void draw(u32 vertex_count) { return draw(vertex_count, 0); }
+	void set_viewport(u32 w, u32 h) { return set_viewport({.min = {}, .max = {(s32)w, (s32)h}}); }
+	void set_viewport(v2u size) { return set_viewport({.min={}, .max=(v2s)size}); }
+	void resize_render_targets(v2u size) { return resize_render_targets(size.x, size.y); }
+
+	Texture2D *create_texture_2d(v2u size, void const *data, Format format) {
+		return create_texture_2d(size.x, size.y, data, format);
 	}
-	return load_texture_2d(file, params);
-}
 
-inline TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams params = {}, GenerateCubeMipmapParams mipmap_params = {}) {
-	Pixels pixels[6];
-	void *datas[6];
-	for (u32 i = 0; i < 6; ++i) {
-		pixels[i] = load_pixels(paths.paths[i]);
-		if (!pixels[i].data) {
-			return 0;
-		}
-
-		bool fail = false;
-		Span<char> reason;
-		if (i == 0) {
-			if (pixels[0].size.y != pixels[0].size.x) {
-				fail = true;
-				reason = "first face is not a square"s;
-			}
-		} else {
-			if (any_true(pixels[i].size != pixels[0].size)) {
-				fail = true;
-				reason = "sizes of faces do not match"s;
-			}
-			if (pixels[i].format != pixels[0].format) {
-				fail = true;
-				reason = "formats of faces do not match"s;
-			}
-		}
-		if (fail) {
-			print(Print_error, "Failed to load cube texture (%) with these paths:\n\t%\n\t%\n\t%\n\t%\n\t%\n\t%\n"
-				, reason
-				, paths.paths[0]
-				, paths.paths[1]
-				, paths.paths[2]
-				, paths.paths[3]
-				, paths.paths[4]
-				, paths.paths[5]
-			);
-			return 0;
-		}
-
-		datas[i] = pixels[i].data;
+	void set_texture(Texture2D *texture, u32 slot) {
+		return set_texture_2d(texture, slot);
 	}
-	defer {
+	void set_texture(TextureCube *texture, u32 slot) {
+		return set_texture_cube(texture, slot);
+	}
+
+	void update_texture(Texture2D *texture, v2u size, void *data) {
+		return update_texture_2d(texture, size.x, size.y, data);
+	}
+
+	void read_texture(Texture2D *texture, Span<u8> data) { return read_texture_2d(texture, data); }
+
+	void generate_mipmaps(Texture2D *texture) {
+		return generate_mipmaps_2d(texture);
+	}
+	void generate_mipmaps(TextureCube *texture, GenerateCubeMipmapParams params) {
+		return generate_mipmaps_cube(texture, params);
+	}
+	void generate_mipmaps(TextureCube *texture) {
+		return generate_mipmaps_cube(texture, {});
+	}
+
+	Texture2D *load_texture_2d(Span<u8> data, LoadTextureParams params = {}) {
+		auto pixels = load_pixels(data, {.flip_y = params.flip_y});
+		if (!pixels.data)
+			return 0;
+		defer { pixels.free(pixels.data); };
+
+		auto result = create_texture_2d(pixels.size.x, pixels.size.y, pixels.data, pixels.format);
+
+		if (params.generate_mipmaps)
+			generate_mipmaps_2d(result);
+
+		return result;
+	}
+	Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
+		auto file = read_entire_file(path);
+		if (!file.data) {
+			print(Print_error, "Failed to read file %.\n", path);
+			return {};
+		}
+		return load_texture_2d(file, params);
+	}
+
+	TextureCube *load_texture_cube(TextureCubePaths paths, LoadTextureParams params = {}, GenerateCubeMipmapParams mipmap_params = {}) {
+		Pixels pixels[6];
+		void *datas[6];
 		for (u32 i = 0; i < 6; ++i) {
-			pixels[i].free(pixels[i].data);
+			pixels[i] = load_pixels(paths.paths[i]);
+			if (!pixels[i].data) {
+				return 0;
+			}
+
+			bool fail = false;
+			Span<char> reason;
+			if (i == 0) {
+				if (pixels[0].size.y != pixels[0].size.x) {
+					fail = true;
+					reason = "first face is not a square"s;
+				}
+			} else {
+				if (any_true(pixels[i].size != pixels[0].size)) {
+					fail = true;
+					reason = "sizes of faces do not match"s;
+				}
+				if (pixels[i].format != pixels[0].format) {
+					fail = true;
+					reason = "formats of faces do not match"s;
+				}
+			}
+			if (fail) {
+				print(Print_error, "Failed to load cube texture (%) with these paths:\n\t%\n\t%\n\t%\n\t%\n\t%\n\t%\n"
+					, reason
+					, paths.paths[0]
+					, paths.paths[1]
+					, paths.paths[2]
+					, paths.paths[3]
+					, paths.paths[4]
+					, paths.paths[5]
+				);
+				return 0;
+			}
+
+			datas[i] = pixels[i].data;
 		}
-	};
-	auto result = _create_texture_cube(pixels[0].size.x, datas, pixels[0].format);
-	if (params.generate_mipmaps) {
-		_generate_mipmaps_cube(result, mipmap_params);
+		defer {
+			for (u32 i = 0; i < 6; ++i) {
+				pixels[i].free(pixels[i].data);
+			}
+		};
+		auto result = create_texture_cube(pixels[0].size.x, datas, pixels[0].format);
+		if (params.generate_mipmaps) {
+			generate_mipmaps_cube(result, mipmap_params);
+		}
+		return result;
 	}
-	return result;
-}
 
-inline void resize_texture_2d(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
-inline void resize_texture(Texture2D *texture, v2u size) { return _resize_texture_2d(texture, size.x, size.y); }
+	void resize_texture_2d(Texture2D *texture, v2u size) { return resize_texture_2d(texture, size.x, size.y); }
+	void resize_texture(Texture2D *texture, v2u size) { return resize_texture_2d(texture, size.x, size.y); }
 
-inline void set_sampler(Filtering filtering, u32 slot) { return _set_sampler(filtering, {}, slot); }
+	void set_sampler(Filtering filtering, u32 slot) { return set_sampler(filtering, {}, slot); }
 
-template <class T>
-struct TypedShaderConstants {
-	ShaderConstants *constants;
+	template <class T>
+	TypedShaderConstants<T> create_shader_constants() {
+		TypedShaderConstants<T> result = {
+			.constants = create_shader_constants(sizeof(T)),
+		};
+		return result;
+	}
+
+	template <class T>
+	void update_shader_constants(ShaderConstants *constants, T const &source) {
+		return update_shader_constants(constants, &source, 0, sizeof(source));
+	}
+
+	template <class T>
+	void update_shader_constants(TypedShaderConstants<T> &constants, T const &value) {
+		return update_shader_constants(constants.constants, &value, 0, sizeof(T));
+	}
+
+	template <class T>
+	void set_shader_constants(TypedShaderConstants<T> const &constants, u32 slot) {
+		return set_shader_constants(constants.constants, slot);
+	}
+
+	template <class T>
+	T *map(TypedShaderConstants<T> const &constants, Access access) {
+		return (T *)map_shader_constants(constants.constants, access);
+	}
+
+	template <class T>
+	void unmap(TypedShaderConstants<T> const &constants) {
+		return unmap_shader_constants(constants.constants);
+	}
+
 };
-
-template <class T>
-TypedShaderConstants<T> create_shader_constants() {
-	TypedShaderConstants<T> result = {
-		.constants = _create_shader_constants(sizeof(T)),
-	};
-	return result;
-}
-
-template <class T>
-inline void update_shader_constants(TypedShaderConstants<T> &constants, T const &value) {
-	return _update_shader_constants(constants.constants, {0, sizeof(T)}, &value);
-}
-
-template <class T, class U>
-inline void update_shader_constants(TypedShaderConstants<T> &constants, ShaderValueLocation dest, U const &source) {
-	assert(sizeof(source) == dest.size);
-	return _update_shader_constants(constants.constants, dest, &source);
-}
-
-template <class T>
-void set_shader_constants(TypedShaderConstants<T> const &constants, u32 slot) {
-	return _set_shader_constants(constants.constants, slot);
-}
-
-template <class T>
-T *map(TypedShaderConstants<T> const &constants, Access access) {
-	return (T *)_map_shader_constants(constants.constants, access);
-}
-
-template <class T>
-void unmap(TypedShaderConstants<T> const &constants) {
-	return _unmap_shader_constants(constants.constants);
-}
 
 #ifndef TGRAPHICS_IMPL
 #undef TGRAPHICS_APIS
 #endif
 
-bool init(GraphicsApi api, InitInfo init_info);
-void free();
+TGRAPHICS_API State *init(GraphicsApi api, InitInfo init_info);
+TGRAPHICS_API void free(State *state);
 
 }
 
@@ -452,54 +486,92 @@ tl::umm get_hash(tl::Span<tgraphics::ElementType> types) {
 
 namespace tgraphics {
 
-#define A(ret, name, args, values) ret (*_##name) args;
-TGRAPHICS_APIS(A)
-#undef A
+namespace d3d11 { State *init(InitInfo init_info); void deinit(State *); }
+namespace gl    { State *init(InitInfo init_info); void deinit(State *); }
 
-RenderTarget *back_buffer;
-v2u min_texture_size;
-
-namespace d3d11 { bool init(InitInfo init_info); void deinit(); }
-namespace gl    { bool init(InitInfo init_info); void deinit(); }
-
-static bool init_api(GraphicsApi api, InitInfo init_info) {
-	if (!init_info.window) {
-		print(Print_error, "init_info.window is null\n");
-		return false;
-	}
-	switch (api) {
-		case GraphicsApi_d3d11: return d3d11::init(init_info);
-		case GraphicsApi_opengl: return gl::init(init_info);
-	}
-	return false;
-}
-
-static bool check_api() {
+static bool check_api(State *state) {
 	bool result = true;
-#define A(ret, name, args, values) if(!_##name){print("tgraphics::" #name " was not initialized.\n");result=false;}
-TGRAPHICS_APIS(A)
-#undef A
+	if(!state->_clear){print("clear was not initialized.\n");result=false;}
+	if(!state->_present){print("present was not initialized.\n");result=false;}
+	if(!state->_draw){print("draw was not initialized.\n");result=false;}
+	if(!state->_draw_indexed){print("draw_indexed was not initialized.\n");result=false;}
+	if(!state->_set_viewport){print("set_viewport was not initialized.\n");result=false;}
+	if(!state->_resize_render_targets){print("resize_render_targets was not initialized.\n");result=false;}
+	if(!state->_set_shader){print("set_shader was not initialized.\n");result=false;}
+	if(!state->_update_shader_constants){print("update_shader_constants was not initialized.\n");result=false;}
+	if(!state->_create_shader){print("create_shader was not initialized.\n");result=false;}
+	if(!state->_calculate_perspective_matrices){print("calculate_perspective_matrices was not initialized.\n");result=false;}
+	if(!state->_create_vertex_buffer){print("create_vertex_buffer was not initialized.\n");result=false;}
+	if(!state->_set_vertex_buffer){print("set_vertex_buffer was not initialized.\n");result=false;}
+	if(!state->_create_index_buffer){print("create_index_buffer was not initialized.\n");result=false;}
+	if(!state->_set_index_buffer){print("set_index_buffer was not initialized.\n");result=false;}
+	if(!state->_set_vsync){print("set_vsync was not initialized.\n");result=false;}
+	if(!state->_create_texture_2d){print("create_texture_2d was not initialized.\n");result=false;}
+	if(!state->_set_texture_2d){print("set_texture_2d was not initialized.\n");result=false;}
+	if(!state->_resize_texture_2d){print("resize_texture_2d was not initialized.\n");result=false;}
+	if(!state->_read_texture_2d){print("read_texture_2d was not initialized.\n");result=false;}
+	if(!state->_update_texture_2d){print("update_texture_2d was not initialized.\n");result=false;}
+	if(!state->_generate_mipmaps_2d){print("generate_mipmaps_2d was not initialized.\n");result=false;}
+	if(!state->_set_sampler){print("set_sampler was not initialized.\n");result=false;}
+	if(!state->_create_render_target){print("create_render_target was not initialized.\n");result=false;}
+	if(!state->_set_render_target){print("set_render_target was not initialized.\n");result=false;}
+	if(!state->_create_texture_cube){print("create_texture_cube was not initialized.\n");result=false;}
+	if(!state->_set_texture_cube){print("set_texture_cube was not initialized.\n");result=false;}
+	if(!state->_generate_mipmaps_cube){print("generate_mipmaps_cube was not initialized.\n");result=false;}
+	if(!state->_create_shader_constants){print("create_shader_constants was not initialized.\n");result=false;}
+	if(!state->_set_shader_constants){print("set_shader_constants was not initialized.\n");result=false;}
+	if(!state->_set_rasterizer){print("set_rasterizer was not initialized.\n");result=false;}
+	if(!state->_get_rasterizer){print("get_rasterizer was not initialized.\n");result=false;}
+	if(!state->_create_compute_shader){print("create_compute_shader was not initialized.\n");result=false;}
+	if(!state->_set_compute_shader){print("set_compute_shader was not initialized.\n");result=false;}
+	if(!state->_dispatch_compute_shader){print("dispatch_compute_shader was not initialized.\n");result=false;}
+	if(!state->_create_compute_buffer){print("create_compute_buffer was not initialized.\n");result=false;}
+	if(!state->_read_compute_buffer){print("read_compute_buffer was not initialized.\n");result=false;}
+	if(!state->_set_compute_buffer){print("set_compute_buffer was not initialized.\n");result=false;}
+	if(!state->_set_compute_texture){print("set_compute_texture was not initialized.\n");result=false;}
+	if(!state->_set_blend){print("set_blend was not initialized.\n");result=false;}
+	if(!state->_set_topology){print("set_topology was not initialized.\n");result=false;}
+	if(!state->_update_vertex_buffer){print("update_vertex_buffer was not initialized.\n");result=false;}
+	if(!state->_set_scissor){print("set_scissor was not initialized.\n");result=false;}
+	if(!state->_disable_scissor){print("disable_scissor was not initialized.\n");result=false;}
+	if(!state->_map_shader_constants){print("map_shader_constants was not initialized.\n");result=false;}
+	if(!state->_unmap_shader_constants){print("unmap_shader_constants was not initialized.\n");result=false;}
+	if(!state->_set_cull){print("set_cull was not initialized.\n");result=false;}
+	if(!state->_disable_blend){print("disable_blend was not initialized.\n");result=false;}
+	if(!state->_disable_depth_clip){print("disable_depth_clip was not initialized.\n");result=false;}
+	if(!state->_enable_depth_clip){print("enable_depth_clip was not initialized.\n");result=false;}
+
 	return result;
 }
 
-GraphicsApi current_api;
-
-bool init(GraphicsApi api, InitInfo init_info) {
-	current_api = api;
-
-	if (!init_api(api, init_info)) {
-		return false;
+State *init(GraphicsApi api, InitInfo init_info) {
+	if (!init_info.window) {
+		print(Print_error, "init_info.window is null\n");
+		return 0;
 	}
 
-	return init_info.dont_check_apis || check_api();
+	State *result = 0;
+
+	switch (api) {
+		//case GraphicsApi_d3d11:  result = d3d11::init(init_info); break;
+		case GraphicsApi_opengl: result =    gl::init(init_info); break;
+	}
+
+	result->api = api;
+
+	if (init_info.check_apis)
+		if (!check_api(result))
+			return 0;
+
+	return result;
 }
 
-void deinit() {
-	switch (current_api) {
-		case GraphicsApi_d3d11: return d3d11::deinit();
-		case GraphicsApi_opengl: return gl::deinit();
+void deinit(State *state) {
+	switch (state->api) {
+		//case GraphicsApi_d3d11:  return d3d11::deinit(state);
+		case GraphicsApi_opengl: return    gl::deinit(state);
 	}
-	current_api = {};
+	state->api = {};
 }
 
 Pixels load_pixels(Span<u8> data, LoadPixelsParams params) {
@@ -575,34 +647,6 @@ struct ComputeBufferImpl : ComputeBuffer {
 	GLuint buffer;
 	u32 size;
 };
-
-struct State {
-	MaskedBlockList<ShaderImpl, 256> shaders;
-	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
-	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
-	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<Texture2DImpl, 256> textures_2d;
-	MaskedBlockList<TextureCubeImpl, 256> textures_cube;
-	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
-	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
-	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
-	StaticHashMap<SamplerKey, GLuint, 256> samplers;
-	IndexBufferImpl *current_index_buffer;
-	RenderTargetImpl back_buffer;
-	Texture2DImpl back_buffer_color;
-	Texture2DImpl back_buffer_depth;
-	RenderTargetImpl *currently_bound_render_target;
-	RasterizerState rasterizer;
-	BlendFunction blend_function;
-	Blend blend_source;
-	Blend blend_destination;
-	GLuint topology = GL_TRIANGLES;
-	Cull cull = Cull_back;
-	bool scissor_enabled = false;
-	bool blend_enabled = false;
-	bool depth_clip_enabled = true;
-};
-static State state;
 
 u32 get_element_scalar_count(ElementType element) {
 	switch (element) {
@@ -782,35 +826,6 @@ GLenum get_cull(Cull cull) {
 	return 0;
 }
 
-void bind_render_target(RenderTargetImpl &render_target) {
-	if (&render_target == state.currently_bound_render_target)
-		return;
-
-	state.currently_bound_render_target = &render_target;
-	glBindFramebuffer(GL_FRAMEBUFFER, render_target.frame_buffer);
-}
-
-GLuint get_sampler(Filtering filtering, Comparison comparison) {
-	if (filtering == Filtering_none)
-		return 0;
-
-	auto &result = state.samplers.get_or_insert({filtering, comparison});
-	if (!result) {
-		glGenSamplers(1, &result);
-		if (comparison != Comparison_none) {
-			glSamplerParameteri(result, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-			auto func = get_func(comparison);
-			glSamplerParameteri(result, GL_TEXTURE_COMPARE_FUNC, func);
-		}
-
-		glSamplerParameteri(result, GL_TEXTURE_MIN_FILTER, get_min_filter(filtering));
-		glSamplerParameteri(result, GL_TEXTURE_MAG_FILTER, get_mag_filter(filtering));
-		glSamplerParameteri(result, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glSamplerParameteri(result, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	}
-	return result;
-}
-
 void resize_texture_gl(Texture2D *_texture, u32 width, u32 height) {
 	auto &texture = *(Texture2DImpl *)_texture;
 	texture.size = {width, height};
@@ -819,29 +834,37 @@ void resize_texture_gl(Texture2D *_texture, u32 width, u32 height) {
 	glBindTexture(texture.target, 0);
 }
 
-bool init(InitInfo init_info) {
+struct StateGL : State {
+	MaskedBlockList<ShaderImpl, 256> shaders;
+	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	MaskedBlockList<RenderTargetImpl, 256> render_targets;
+	MaskedBlockList<Texture2DImpl, 256> textures_2d;
+	MaskedBlockList<TextureCubeImpl, 256> textures_cube;
+	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
+	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	StaticHashMap<SamplerKey, GLuint, 256> samplers;
+	IndexBufferImpl *current_index_buffer;
+	RenderTargetImpl back_buffer;
+	Texture2DImpl back_buffer_color;
+	Texture2DImpl back_buffer_depth;
+	RenderTargetImpl *currently_bound_render_target;
+	RasterizerState current_rasterizer;
+	BlendFunction current_blend_function;
+	Blend current_blend_source;
+	Blend current_blend_destination;
+	GLuint current_topology = GL_TRIANGLES;
+	Cull current_cull = Cull_back;
+	bool scissor_enabled = false;
+	bool blend_enabled = false;
+	bool depth_clip_enabled = true;
 
-	if (!init_opengl(init_info.window, init_info.debug)) {
-		return false;
-	}
-
-	new (&state) State();
-
-	back_buffer = &state.back_buffer;
-	state.back_buffer.color = &state.back_buffer_color;
-	state.back_buffer.depth = &state.back_buffer_depth;
-
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-
-	//glEnable(GL_DEPTH_TEST);
-	//glDepthFunc(GL_LESS);
-
-	_clear = [](RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
+	auto impl_clear(RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		assert(_render_target);
 		auto &render_target = *(RenderTargetImpl *)_render_target;
 
-		auto previously_bound_render_target = state.currently_bound_render_target;
+		auto previously_bound_render_target = currently_bound_render_target;
 		bind_render_target(render_target);
 
 		GLbitfield mask = 0;
@@ -852,46 +875,46 @@ bool init(InitInfo init_info) {
 		if (previously_bound_render_target) {
 			bind_render_target(*previously_bound_render_target);
 		}
-	};
-	_present = []() {
+	}
+	auto impl_present() {
 		gl::present();
-	};
-	_draw = [](u32 vertex_count, u32 start_vertex) {
+	}
+	auto impl_draw(u32 vertex_count, u32 start_vertex) {
 		assert(vertex_count, "tgraphics::draw called with 0 vertices");
-		glDrawArrays(state.topology, start_vertex, vertex_count);
-	};
-	_draw_indexed = [](u32 index_count) {
-		assert(state.current_index_buffer, "Index buffer was not bound");
-		glDrawElements(state.topology, index_count, state.current_index_buffer->type, 0);
-	};
-	_set_viewport = [](Viewport viewport) {
+		glDrawArrays(current_topology, start_vertex, vertex_count);
+	}
+	auto impl_draw_indexed(u32 index_count) {
+		assert(current_index_buffer, "Index buffer was not bound");
+		glDrawElements(current_topology, index_count, current_index_buffer->type, 0);
+	}
+	auto impl_set_viewport(Viewport viewport) {
 		assert(viewport.max.x - viewport.min.x > 0);
 		assert(viewport.max.y - viewport.min.y > 0);
 		glViewport(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
-	};
-	_resize_render_targets = [](u32 width, u32 height) {
-		state.back_buffer_color.size = state.back_buffer_depth.size = {width, height};
-	};
-	_set_shader = [](Shader *_shader) {
+	}
+	auto impl_resize_render_targets(u32 width, u32 height) {
+		back_buffer_color.size = back_buffer_depth.size = {width, height};
+	}
+	auto impl_set_shader(Shader *_shader) {
 		assert(_shader);
 		auto &shader = *(ShaderImpl *)_shader;
 		glUseProgram(shader.program);
-	};
-	_set_shader_constants = [](ShaderConstants *_constants, u32 slot) {
+	}
+	auto impl_set_shader_constants(ShaderConstants *_constants, u32 slot) {
 		assert(_constants);
 		auto &constants = *(ShaderConstantsImpl *)_constants;
 		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
 		glBindBufferBase(GL_UNIFORM_BUFFER, slot, constants.uniform_buffer);
-	};
-	_update_shader_constants = [](ShaderConstants *_constants, ShaderValueLocation dest, void const *source) {
+	}
+	auto impl_update_shader_constants(ShaderConstants *_constants, void const *source, u32 offset, u32 size) {
 		assert(_constants);
 		auto &constants = *(ShaderConstantsImpl *)_constants;
 		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
-		glBufferSubData(GL_UNIFORM_BUFFER, dest.start, dest.size, source);
+		glBufferSubData(GL_UNIFORM_BUFFER, offset, size, source);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
-	};
-	_create_shader = [](Span<utf8> source) -> Shader * {
-		auto &shader = state.shaders.add();
+	}
+	auto impl_create_shader(Span<utf8> source) -> Shader * {
+		auto &shader = shaders.add();
 		auto vertex   = tl::gl::create_shader(GL_VERTEX_SHADER, 430, true, (Span<char>)source);
 		auto fragment = tl::gl::create_shader(GL_FRAGMENT_SHADER, 430, true, (Span<char>)source);
 		assert(vertex);
@@ -902,25 +925,25 @@ bool init(InitInfo init_info) {
 		});
 		assert(shader.program);
 		return &shader;
-	};
-	_create_shader_constants = [](umm size) -> ShaderConstants * {
-		auto &constants = state.shader_constants.add();
+	}
+	auto impl_create_shader_constants(umm size) -> ShaderConstants * {
+		auto &constants = shader_constants.add();
 		glGenBuffers(1, &constants.uniform_buffer);
 		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
 		glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_STATIC_DRAW);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 		constants.values_size = size;
 		return &constants;
-	};
-	_calculate_perspective_matrices = [](v3f position, v3f rotation, f32 aspect_ratio, f32 fov, f32 near_plane, f32 far_plane) {
+	}
+	auto impl_calculate_perspective_matrices(v3f position, v3f rotation, f32 aspect_ratio, f32 fov, f32 near_plane, f32 far_plane) {
 		CameraMatrices result;
 		result.mvp = m4::perspective_right_handed(aspect_ratio, fov, near_plane, far_plane)
 				   * m4::rotation_r_yxz(-rotation)
 			       * m4::translation(-position);
 		return result;
-	};
-	_create_vertex_buffer = [](Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
-		VertexBufferImpl &result = state.vertex_buffers.add();
+	}
+	auto impl_create_vertex_buffer(Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
+		VertexBufferImpl &result = vertex_buffers.add();
 		glGenBuffers(1, &result.buffer);
 		glGenVertexArrays(1, &result.array);
 
@@ -946,15 +969,13 @@ bool init(InitInfo init_info) {
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 		return &result;
-	};
-
-	_set_vertex_buffer = [](VertexBuffer *_buffer) {
+	}
+	auto impl_set_vertex_buffer(VertexBuffer *_buffer) {
 		auto buffer = (VertexBufferImpl *)_buffer;
 		glBindVertexArray(buffer ? buffer->array : 0);
-	};
-
-	_create_index_buffer = [](Span<u8> buffer, u32 index_size) -> IndexBuffer * {
-		IndexBufferImpl &result = state.index_buffers.add();
+	}
+	auto impl_create_index_buffer(Span<u8> buffer, u32 index_size) -> IndexBuffer * {
+		IndexBufferImpl &result = index_buffers.add();
 		result.type = get_index_type_from_size(index_size);
 		result.count = buffer.size / index_size;
 
@@ -965,28 +986,26 @@ bool init(InitInfo init_info) {
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 		return &result;
-	};
-
-	_set_index_buffer = [](IndexBuffer *_buffer) {
+	}
+	auto impl_set_index_buffer(IndexBuffer *_buffer) {
 		auto buffer = (IndexBufferImpl *)_buffer;
-		state.current_index_buffer = buffer;
+		current_index_buffer = buffer;
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer ? buffer->buffer : 0);
-	};
-
-	_set_vsync = [](bool enable) {
+	}
+	auto impl_set_vsync(bool enable) {
 		wglSwapIntervalEXT(enable);
-	};
-	_set_render_target = [](RenderTarget *_render_target) {
+	}
+	auto impl_set_render_target(RenderTarget *_render_target) {
 		assert(_render_target);
 		auto &render_target = *(RenderTargetImpl *)_render_target;
 		bind_render_target(render_target);
-	};
-	_create_render_target = [](Texture2D *_color, Texture2D *_depth) -> RenderTarget * {
+	}
+	auto impl_create_render_target(Texture2D *_color, Texture2D *_depth) -> RenderTarget * {
 		assert(_color || _depth);
 		auto color = (Texture2DImpl *)_color;
 		auto depth = (Texture2DImpl *)_depth;
 
-		auto &result = state.render_targets.add();
+		auto &result = render_targets.add();
 
 		result.color = color;
 		result.depth = depth;
@@ -1017,17 +1036,17 @@ bool init(InitInfo init_info) {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		return &result;
-	};
-	_set_sampler = [](Filtering filtering, Comparison comparison, u32 slot) {
+	}
+	auto impl_set_sampler(Filtering filtering, Comparison comparison, u32 slot) {
 		glActiveTexture(GL_TEXTURE0 + slot);
 		glBindSampler(slot, get_sampler(filtering, comparison));
-	};
-	_set_texture_2d = [](Texture2D *_texture, u32 slot) {
+	}
+	auto impl_set_texture_2d(Texture2D *_texture, u32 slot) {
 		auto &texture = *(Texture2DImpl *)_texture;
 		glActiveTexture(GL_TEXTURE0 + slot);
 		glBindTexture(texture.target, _texture ? texture.texture : 0);
-	};
-	_set_texture_cube = [](TextureCube *_texture, u32 slot) {
+	}
+	auto impl_set_texture_cube(TextureCube *_texture, u32 slot) {
 		auto &texture = *(TextureCubeImpl *)_texture;
 		glActiveTexture(GL_TEXTURE0 + slot);
 		if (_texture) {
@@ -1035,9 +1054,9 @@ bool init(InitInfo init_info) {
 		} else {
 			glBindTexture(texture.target, 0);
 		}
-	};
-	_create_texture_2d = [](u32 width, u32 height, void const *data, Format format) -> Texture2D * {
-		auto &result = state.textures_2d.add();
+	}
+	auto impl_create_texture_2d(u32 width, u32 height, void const *data, Format format) -> Texture2D * {
+		auto &result = textures_2d.add();
 
 		result.size = {width, height};
 
@@ -1054,9 +1073,9 @@ bool init(InitInfo init_info) {
 		glBindTexture(GL_TEXTURE_2D, 0);
 
 		return &result;
-	};
-	_set_rasterizer = [](RasterizerState rasterizer) {
-		if (rasterizer.depth_test != state.rasterizer.depth_test) {
+	}
+	auto impl_set_rasterizer(RasterizerState rasterizer) {
+		if (current_rasterizer.depth_test != rasterizer.depth_test) {
 			if (rasterizer.depth_test) {
 				glEnable(GL_DEPTH_TEST);
 			} else {
@@ -1065,38 +1084,38 @@ bool init(InitInfo init_info) {
 		}
 
 		if (rasterizer.depth_test) {
-			if (rasterizer.depth_func != state.rasterizer.depth_func) {
+			if (current_rasterizer.depth_func != rasterizer.depth_func) {
 				glDepthFunc(get_func((Comparison)rasterizer.depth_func));
 			}
 		}
 
-		//if (rasterizer.depth_write != state.rasterizer.depth_write) {
+		//if (current_rasterizer.depth_write != rasterizer.depth_write) {
 		//	glDepthMask(rasterizer.depth_write);
 		//}
 
-		state.rasterizer = rasterizer;
-	};
-	_get_rasterizer = []() -> RasterizerState {
-		return state.rasterizer;
-	};
-	_create_compute_shader = [](Span<utf8> source) -> ComputeShader * {
-		auto &result = state.compute_shaders.add();
+		current_rasterizer = rasterizer;
+	}
+	auto impl_get_rasterizer() -> RasterizerState {
+		return current_rasterizer;
+	}
+	auto impl_create_compute_shader(Span<utf8> source) -> ComputeShader * {
+		auto &result = compute_shaders.add();
 		result.program = create_program({
 			.compute = tl::gl::create_shader(GL_COMPUTE_SHADER, 430, true, (Span<char>)source),
 		});
 		return &result;
-	};
-	_set_compute_shader = [](ComputeShader *_shader) {
+	}
+	auto impl_set_compute_shader(ComputeShader *_shader) {
 		assert(_shader);
 		auto &shader = *(ComputeShaderImpl *)_shader;
 		glUseProgram(shader.program);
-	};
-	_dispatch_compute_shader = [](u32 x, u32 y, u32 z) {
+	}
+	auto impl_dispatch_compute_shader(u32 x, u32 y, u32 z) {
 		glDispatchCompute(x, y, z);
-	};
-	_resize_texture_2d = resize_texture_gl;
-	_create_compute_buffer = [](u32 size) -> ComputeBuffer * {
-		auto &result = state.compute_buffers.add();
+	}
+	auto impl_resize_texture_2d(Texture2D *texture, u32 width, u32 height) { resize_texture_gl(texture, width, height); }
+	auto impl_create_compute_buffer(u32 size) -> ComputeBuffer * {
+		auto &result = compute_buffers.add();
 		result.size = size;
 		glGenBuffers(1, &result.buffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, result.buffer);
@@ -1105,14 +1124,14 @@ bool init(InitInfo init_info) {
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 		return &result;
-	};
-	_set_compute_buffer =  [](ComputeBuffer *_buffer, u32 slot) {
+	}
+	auto impl_set_compute_buffer(ComputeBuffer *_buffer, u32 slot) {
 		assert(_buffer);
 		auto &buffer = *(ComputeBufferImpl *)_buffer;
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer.buffer);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer.buffer);
-	};
-	_read_compute_buffer = [](ComputeBuffer *_buffer, void *data) {
+	}
+	auto impl_read_compute_buffer(ComputeBuffer *_buffer, void *data) {
 		assert(_buffer);
 		auto &buffer = *(ComputeBufferImpl *)_buffer;
 
@@ -1123,45 +1142,49 @@ bool init(InitInfo init_info) {
 		void* resultData = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, buffer.size, GL_MAP_READ_BIT);
 		memcpy(data, resultData, buffer.size);
 		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-	};
-	_set_compute_texture = [](Texture2D *_texture, u32 slot) {
+	}
+	auto impl_set_compute_texture(Texture2D *_texture, u32 slot) {
 		assert(_texture);
 		auto &texture = *(Texture2DImpl *)_texture;
 		glBindImageTexture(slot, texture.texture, 0, GL_FALSE, 0, GL_READ_ONLY, texture.internal_format);
-	};
-	_read_texture_2d = [](Texture2D *_texture, Span<u8> data) {
+	}
+	auto impl_read_texture_2d(Texture2D *_texture, Span<u8> data) {
 		assert(_texture);
 		auto &texture = *(Texture2DImpl *)_texture;
 		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.size, data.data);
-	};
-	_set_blend = [](BlendFunction function, Blend source, Blend destination) {
-		if (!state.blend_enabled) {
-			state.blend_enabled = true;
+	}
+	auto impl_set_blend(BlendFunction function, Blend source, Blend destination) {
+		if (!blend_enabled) {
+			blend_enabled = true;
 			glEnable(GL_BLEND);
 		}
 
-		if (function != state.blend_function) {
-			state.blend_function = function;
+		if (function != current_blend_function) {
+			current_blend_function = function;
 			glBlendEquation(get_equation(function));
 		}
-		if (source != state.blend_source || destination != state.blend_destination) {
-			state.blend_source = source;
-			state.blend_destination = destination;
+		if (source != current_blend_source || destination != current_blend_destination) {
+			current_blend_source = source;
+			current_blend_destination = destination;
 			glBlendFunc(get_blend(source), get_blend(destination));
 		}
-	};
-	_disable_blend = []() {
-		if (state.blend_enabled) {
-			state.blend_enabled = false;
+	}
+	auto impl_disable_blend() {
+		if (blend_enabled) {
+			blend_enabled = false;
 			glDisable(GL_BLEND);
 		}
-	};
-	_disable_depth_clip = []() { if ( state.depth_clip_enabled) { state.depth_clip_enabled = false; glEnable (GL_DEPTH_CLAMP); } };
-	_enable_depth_clip  = []() { if (!state.depth_clip_enabled) { state.depth_clip_enabled = true ; glDisable(GL_DEPTH_CLAMP); } };
-	_create_texture_cube = [](u32 size, void *data[6], Format format) -> TextureCube * {
-		auto &result = state.textures_cube.add();
+	}
+	auto impl_disable_depth_clip() {
+		if ( depth_clip_enabled) { depth_clip_enabled = false; glEnable (GL_DEPTH_CLAMP); }
+	}
+	auto impl_enable_depth_clip () {
+		if (!depth_clip_enabled) { depth_clip_enabled = true ; glDisable(GL_DEPTH_CLAMP); }
+	}
+	auto impl_create_texture_cube(u32 size, void *data[6], Format format) -> TextureCube * {
+		auto &result = textures_cube.add();
 
-		// result.size = {width, height};
+		// result.size = {width, height}
 
 		result.internal_format = get_internal_format(format);
 		result.format          = get_format(format);
@@ -1177,76 +1200,182 @@ bool init(InitInfo init_info) {
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
 		return &result;
-	};
-	_set_topology = [](Topology topology) {
-		state.topology = get_topology(topology);
-	};
-	_update_vertex_buffer = [](VertexBuffer *_buffer, Span<u8> data) {
+	}
+	auto impl_set_topology(Topology topology) {
+		current_topology = get_topology(topology);
+	}
+	auto impl_update_vertex_buffer(VertexBuffer *_buffer, Span<u8> data) {
 		auto &buffer = *(VertexBufferImpl *)_buffer;
 		glBindBuffer(GL_ARRAY_BUFFER, buffer.buffer);
 		glBufferData(GL_ARRAY_BUFFER, data.size, data.data, GL_STATIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
-	};
-	_update_texture_2d = [](Texture2D *_texture, u32 width, u32 height, void *data) {
+	}
+	auto impl_update_texture_2d(Texture2D *_texture, u32 width, u32 height, void *data) {
 		auto &texture = *(Texture2DImpl *)_texture;
 		glBindTexture(texture.target, texture.texture);
 		glTexImage2D(texture.target, 0, texture.internal_format, width, height, 0, texture.format, texture.type, data);
 		glBindTexture(texture.target, 0);
-	};
-	_generate_mipmaps_2d = [](Texture2D *_texture) {
+	}
+	auto impl_generate_mipmaps_2d(Texture2D *_texture) {
 		assert(_texture);
 		auto &texture = *(Texture2DImpl *)_texture;
 		glGenerateTextureMipmap(texture.texture);
-	};
-	_generate_mipmaps_cube = [](TextureCube *_texture, GenerateCubeMipmapParams params) {
+	}
+	auto impl_generate_mipmaps_cube(TextureCube *_texture, GenerateCubeMipmapParams params) {
 		assert(_texture);
 		auto &texture = *(TextureCubeImpl *)_texture;
 		glGenerateTextureMipmap(texture.texture);
-	};
-	_set_scissor = [](Viewport viewport) {
-		if (!state.scissor_enabled) {
-			state.scissor_enabled = true;
+	}
+	auto impl_set_scissor(Viewport viewport) {
+		if (!scissor_enabled) {
+			scissor_enabled = true;
 			glEnable(GL_SCISSOR_TEST);
 		}
 		assert(viewport.max.x - viewport.min.x > 0);
 		assert(viewport.max.y - viewport.min.y > 0);
-		if (!state.scissor_enabled) {
+		if (!scissor_enabled) {
 			print(Print_warning, "tgraphics::set_scissor was called when scessor test is not enabled\n");
 		}
 		glScissor(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
-	};
-	_disable_scissor = [] {
-		if (state.scissor_enabled) {
-			state.scissor_enabled = false;
+	}
+	auto impl_disable_scissor() {
+		if (scissor_enabled) {
+			scissor_enabled = false;
 			glDisable(GL_SCISSOR_TEST);
 		}
-	};
-	_map_shader_constants = [](ShaderConstants *_constants, Access access) {
+	}
+	auto impl_map_shader_constants(ShaderConstants *_constants, Access access) {
 		assert(_constants);
 		auto &constants = *(ShaderConstantsImpl *)_constants;
 		return glMapNamedBuffer(constants.uniform_buffer, get_access(access));
-	};
-	_unmap_shader_constants = [](ShaderConstants *_constants) {
+	}
+	auto impl_unmap_shader_constants(ShaderConstants *_constants) {
 		assert(_constants);
 		auto &constants = *(ShaderConstantsImpl *)_constants;
 		glUnmapNamedBuffer(constants.uniform_buffer);
-	};
-	_set_cull = [](Cull cull) {
-		if (cull != state.cull) {
+	}
+	auto impl_set_cull(Cull cull) {
+		if (current_cull != cull) {
+			current_cull = cull;
+
 			if (cull == Cull_none) {
 				glDisable(GL_CULL_FACE);
 			} else {
-				if (state.cull == Cull_none) {
+				if (cull == Cull_none) {
 					glEnable(GL_CULL_FACE);
 				}
 				glCullFace(get_cull(cull));
 			}
 		}
-	};
-	return true;
+	}
+
+
+	void bind_render_target(RenderTargetImpl &render_target) {
+		if (&render_target == currently_bound_render_target)
+			return;
+
+		currently_bound_render_target = &render_target;
+		glBindFramebuffer(GL_FRAMEBUFFER, render_target.frame_buffer);
+	}
+
+	GLuint get_sampler(Filtering filtering, Comparison comparison) {
+		if (filtering == Filtering_none)
+			return 0;
+
+		auto &result = samplers.get_or_insert({filtering, comparison});
+		if (!result) {
+			glGenSamplers(1, &result);
+			if (comparison != Comparison_none) {
+				glSamplerParameteri(result, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+				auto func = get_func(comparison);
+				glSamplerParameteri(result, GL_TEXTURE_COMPARE_FUNC, func);
+			}
+
+			glSamplerParameteri(result, GL_TEXTURE_MIN_FILTER, get_min_filter(filtering));
+			glSamplerParameteri(result, GL_TEXTURE_MAG_FILTER, get_mag_filter(filtering));
+			glSamplerParameteri(result, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glSamplerParameteri(result, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
+		return result;
+	}
+
+};
+
+State *init(InitInfo init_info) {
+	if (!init_opengl(init_info.window, init_info.debug)) {
+		return 0;
+	}
+
+	auto allocator = current_allocator;
+
+	auto state = allocator.allocate<StateGL>();
+	state->allocator = allocator;
+
+	((State *)state)->back_buffer        = &state->back_buffer;
+	((State *)state)->back_buffer->color = &state->back_buffer_color;
+	((State *)state)->back_buffer->depth = &state->back_buffer_depth;
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+
+	//glEnable(GL_DEPTH_TEST);
+	//glDepthFunc(GL_LESS);
+
+	state->_clear = [](State *_state, RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth) -> void { return ((StateGL *)_state)->impl_clear(render_target, flags, color, depth); };
+	state->_present = [](State *_state) -> void { return ((StateGL *)_state)->impl_present(); };
+	state->_draw = [](State *_state, u32 vertex_count, u32 start_vertex) -> void { return ((StateGL *)_state)->impl_draw(vertex_count, start_vertex); };
+	state->_draw_indexed = [](State *_state, u32 index_count) -> void { return ((StateGL *)_state)->impl_draw_indexed(index_count); };
+	state->_set_viewport = [](State *_state, Viewport viewport) -> void { return ((StateGL *)_state)->impl_set_viewport(viewport); };
+	state->_resize_render_targets = [](State *_state, u32 w, u32 h) -> void { return ((StateGL *)_state)->impl_resize_render_targets(w, h); };
+	state->_set_shader = [](State *_state, Shader * shader) -> void { return ((StateGL *)_state)->impl_set_shader(shader); };
+	state->_update_shader_constants = [](State *_state, ShaderConstants * constants, void const * source, u32 offset, u32 size) -> void { return ((StateGL *)_state)->impl_update_shader_constants(constants, source, offset, size); };
+	state->_create_shader = [](State *_state, Span<utf8> source) -> Shader * { return ((StateGL *)_state)->impl_create_shader(source); };
+	state->_calculate_perspective_matrices = [](State *_state, v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane) -> CameraMatrices { return ((StateGL *)_state)->impl_calculate_perspective_matrices(position, rotation, aspect_ratio, fov_radians, near_plane, far_plane); };
+	state->_create_vertex_buffer = [](State *_state, Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * { return ((StateGL *)_state)->impl_create_vertex_buffer(buffer, vertex_descriptor); };
+	state->_set_vertex_buffer = [](State *_state, VertexBuffer * buffer) -> void { return ((StateGL *)_state)->impl_set_vertex_buffer(buffer); };
+	state->_create_index_buffer = [](State *_state, Span<u8> buffer, u32 index_size) -> IndexBuffer * { return ((StateGL *)_state)->impl_create_index_buffer(buffer, index_size); };
+	state->_set_index_buffer = [](State *_state, IndexBuffer * buffer) -> void { return ((StateGL *)_state)->impl_set_index_buffer(buffer); };
+	state->_set_vsync = [](State *_state, bool enable) -> void { return ((StateGL *)_state)->impl_set_vsync(enable); };
+	state->_create_texture_2d = [](State *_state, u32 width, u32 height, void const * data, Format format) -> Texture2D * { return ((StateGL *)_state)->impl_create_texture_2d(width, height, data, format); };
+	state->_set_texture_2d = [](State *_state, Texture2D * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_texture_2d(texture, slot); };
+	state->_resize_texture_2d = [](State *_state, Texture2D * texture, u32 w, u32 h) -> void { return ((StateGL *)_state)->impl_resize_texture_2d(texture, w, h); };
+	state->_read_texture_2d = [](State *_state, Texture2D * texture, Span<u8> data) -> void { return ((StateGL *)_state)->impl_read_texture_2d(texture, data); };
+	state->_update_texture_2d = [](State *_state, Texture2D * texture, u32 width, u32 height, void * data) -> void { return ((StateGL *)_state)->impl_update_texture_2d(texture, width, height, data); };
+	state->_generate_mipmaps_2d = [](State *_state, Texture2D * texture) -> void { return ((StateGL *)_state)->impl_generate_mipmaps_2d(texture); };
+	state->_set_sampler = [](State *_state, Filtering filtering, Comparison comparison, u32 slot) -> void { return ((StateGL *)_state)->impl_set_sampler(filtering, comparison, slot); };
+	state->_create_render_target = [](State *_state, Texture2D * color, Texture2D * depth) -> RenderTarget * { return ((StateGL *)_state)->impl_create_render_target(color, depth); };
+	state->_set_render_target = [](State *_state, RenderTarget * target) -> void { return ((StateGL *)_state)->impl_set_render_target(target); };
+	state->_create_texture_cube = [](State *_state, u32 size, void ** data, Format format) -> TextureCube * { return ((StateGL *)_state)->impl_create_texture_cube(size, data, format); };
+	state->_set_texture_cube = [](State *_state, TextureCube * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_texture_cube(texture, slot); };
+	state->_generate_mipmaps_cube = [](State *_state, TextureCube * texture, GenerateCubeMipmapParams params) -> void { return ((StateGL *)_state)->impl_generate_mipmaps_cube(texture, params); };
+	state->_create_shader_constants = [](State *_state, umm size) -> ShaderConstants * { return ((StateGL *)_state)->impl_create_shader_constants(size); };
+	state->_set_shader_constants = [](State *_state, ShaderConstants * constants, u32 slot) -> void { return ((StateGL *)_state)->impl_set_shader_constants(constants, slot); };
+	state->_set_rasterizer = [](State *_state, RasterizerState state) -> void { return ((StateGL *)_state)->impl_set_rasterizer(state); };
+	state->_get_rasterizer = [](State *_state) -> RasterizerState { return ((StateGL *)_state)->impl_get_rasterizer(); };
+	state->_create_compute_shader = [](State *_state, Span<utf8> source) -> ComputeShader * { return ((StateGL *)_state)->impl_create_compute_shader(source); };
+	state->_set_compute_shader = [](State *_state, ComputeShader * shader) -> void { return ((StateGL *)_state)->impl_set_compute_shader(shader); };
+	state->_dispatch_compute_shader = [](State *_state, u32 x, u32 y, u32 z) -> void { return ((StateGL *)_state)->impl_dispatch_compute_shader(x, y, z); };
+	state->_create_compute_buffer = [](State *_state, u32 size) -> ComputeBuffer * { return ((StateGL *)_state)->impl_create_compute_buffer(size); };
+	state->_read_compute_buffer = [](State *_state, ComputeBuffer * buffer, void * data) -> void { return ((StateGL *)_state)->impl_read_compute_buffer(buffer, data); };
+	state->_set_compute_buffer = [](State *_state, ComputeBuffer * buffer, u32 slot) -> void { return ((StateGL *)_state)->impl_set_compute_buffer(buffer, slot); };
+	state->_set_compute_texture = [](State *_state, Texture2D * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_compute_texture(texture, slot); };
+	state->_set_blend = [](State *_state, BlendFunction function, Blend source, Blend destination) -> void { return ((StateGL *)_state)->impl_set_blend(function, source, destination); };
+	state->_set_topology = [](State *_state, Topology topology) -> void { return ((StateGL *)_state)->impl_set_topology(topology); };
+	state->_update_vertex_buffer = [](State *_state, VertexBuffer * buffer, Span<u8> data) -> void { return ((StateGL *)_state)->impl_update_vertex_buffer(buffer, data); };
+	state->_set_scissor = [](State *_state, Viewport viewport) -> void { return ((StateGL *)_state)->impl_set_scissor(viewport); };
+	state->_disable_scissor = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_scissor(); };
+	state->_map_shader_constants = [](State *_state, ShaderConstants * constants, Access access) -> void * { return ((StateGL *)_state)->impl_map_shader_constants(constants, access); };
+	state->_unmap_shader_constants = [](State *_state, ShaderConstants * constants) -> void { return ((StateGL *)_state)->impl_unmap_shader_constants(constants); };
+	state->_set_cull = [](State *_state, Cull cull) -> void { return ((StateGL *)_state)->impl_set_cull(cull); };
+	state->_disable_blend = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_blend(); };
+	state->_disable_depth_clip = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_depth_clip(); };
+	state->_enable_depth_clip = [](State *_state) -> void { return ((StateGL *)_state)->impl_enable_depth_clip(); };
+
+
+	return state;
 }
 
-void deinit() {
+void deinit(State *state) {
 	/*
 	MaskedBlockList<ShaderImpl, 256> shaders;
 	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
@@ -1267,20 +1396,20 @@ void deinit() {
 	Blend blend_source;
 	Blend blend_destination;
 	*/
-	free(state.shaders);
-	free(state.vertex_buffers);
-	free(state.index_buffers);
-	free(state.render_targets);
-	free(state.textures_2d);
-	free(state.shader_constants);
-	free(state.compute_shaders);
-	free(state.compute_buffers);
-	free(state.samplers);
+	//free(state->shaders);
+	//free(state->vertex_buffers);
+	//free(state->index_buffers);
+	//free(state->render_targets);
+	//free(state->textures_2d);
+	//free(state->shader_constants);
+	//free(state->compute_shaders);
+	//free(state->compute_buffers);
+	//free(state->samplers);
 }
 
 }
 
-
+#if 0
 #include <d3d11.h>
 #include <dxgi.h>
 #include <d3dcompiler.h>
@@ -1807,8 +1936,8 @@ bool init(InitInfo init_info) {
 void deinit() {
 
 }
-
 }
+#endif
 
 #endif
 
