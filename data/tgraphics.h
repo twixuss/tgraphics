@@ -12,6 +12,10 @@
 #define TGRAPHICS_TEXTURE_2D_EXTENSION ::tl::EmptyStruct
 #endif
 
+#ifndef TGRAPHICS_TEXTURE_CUBE_EXTENSION
+#define TGRAPHICS_TEXTURE_CUBE_EXTENSION ::tl::EmptyStruct
+#endif
+
 using namespace tl;
 
 namespace tgraphics {
@@ -122,18 +126,18 @@ enum Topology {
 	Topology_line_list,
 };
 
-struct TextureCube {
+struct TextureCube : TGRAPHICS_TEXTURE_CUBE_EXTENSION {
 };
 union TextureCubePaths {
 	struct {
-		Span<pathchar> left;
-		Span<pathchar> right;
-		Span<pathchar> top;
-		Span<pathchar> bottom;
-		Span<pathchar> front;
-		Span<pathchar> back;
+		Span<utf8> left;
+		Span<utf8> right;
+		Span<utf8> top;
+		Span<utf8> bottom;
+		Span<utf8> front;
+		Span<utf8> back;
 	};
-	Span<pathchar> paths[6];
+	Span<utf8> paths[6];
 };
 
 // min is bottom left
@@ -175,7 +179,7 @@ struct LoadTextureParams {
 
 TGRAPHICS_API Pixels load_pixels(Span<u8> data, LoadPixelsParams params = {});
 
-inline Pixels load_pixels(Span<pathchar> path, LoadPixelsParams params = {}) {
+inline Pixels load_pixels(Span<utf8> path, LoadPixelsParams params = {}) {
 	auto file = read_entire_file(path);
 	if (!file.data) {
 		print(Print_error, "Failed to read file %.\n", path);
@@ -239,7 +243,7 @@ APIS_DEFINITION;
 
 		return result;
 	}
-	Texture2D *load_texture_2d(Span<pathchar> path, LoadTextureParams params = {}) {
+	Texture2D *load_texture_2d(Span<utf8> path, LoadTextureParams params = {}) {
 		auto file = read_entire_file(path);
 		if (!file.data) {
 			print(Print_error, "Failed to read file %.\n", path);
