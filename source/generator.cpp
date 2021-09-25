@@ -1,5 +1,3 @@
-#define TL_IMPL
-#define TL_MAIN
 #include <tl/common.h>
 #include <tl/file.h>
 #include <tl/console.h>
@@ -21,6 +19,8 @@ struct Token {
 void append(StringBuilder &builder, Token token) {
 	append_format(builder, "'%:%:%'", token.view, token.line, token.column);
 }
+
+void run_test();
 
 s32 tl_main(Span<Span<utf8>> args) {
 	current_printer = console_printer;
@@ -246,6 +246,8 @@ begin_parse:
 	write(destination_file, Span(remap_token.end(), mapped_source.data.end()));
 
 	print("Done\n");
+
+	run_test();
 
 	return 0;
 }

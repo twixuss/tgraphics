@@ -5,6 +5,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\generator.cpp" />
+    <ClCompile Include="source\test.cpp" />
+    <ClCompile Include="source\tl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="dep\tl\tl.natvis" />
