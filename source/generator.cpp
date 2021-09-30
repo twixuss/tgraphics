@@ -20,8 +20,6 @@ void append(StringBuilder &builder, Token token) {
 	append_format(builder, "'%:%:%'", token.view, token.line, token.column);
 }
 
-void run_test();
-
 s32 tl_main(Span<Span<utf8>> args) {
 	current_printer = console_printer;
 	current_allocator = temporary_allocator;
@@ -161,24 +159,18 @@ begin_parse:
 		funcs.add(f);
 	}
 
-
-
-
-	auto source_file = open_file(tl_file_string("../data/tgraphics.h"), {.read = true});
-	defer { close(source_file); };
-
-	auto mapped_source = map_file(source_file);
-	defer { unmap_file(mapped_source); };
-
-
-	auto destination_file = open_file(tl_file_string("../include/tgraphics/tgraphics.h"), {.write = true});
-	defer {close(destination_file);};
-
+	auto write_entire_file = [&](Span<utf8> path, Span<u8> data) {
+		if (!tl::write_entire_file(path, data)) {
+			print(Print_error, "Failed to write %\n", path);
+			return false;
+		}
+		return true;
+	};
 
 	StringBuilder defn_builder;
 	for (auto func : funcs) {
 		// POINTER
-		append_format(defn_builder, "\t% (*_%)(State *_state", func.ret, func.name);
+		append_format(defn_builder, "% (*_%)(State *_state", func.ret, func.name);
 		if (func.args.size) {
 			append(defn_builder, ", ");
 		}
@@ -190,7 +182,7 @@ begin_parse:
 		append(defn_builder, ");\n");
 
 		// FUNCTION
-		append_format(defn_builder, "\t% %(", func.ret, func.name);
+		append_format(defn_builder, "% %(", func.ret, func.name);
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
 				append(defn_builder, ", ");
@@ -207,47 +199,34 @@ begin_parse:
 		}
 		append(defn_builder, "); }\n");
 	}
-#define A(ret, name, args, values)
+	write_entire_file(u8"../include/tgraphics/generated/definition.h"s, as_bytes(to_string(defn_builder)));
 
 	StringBuilder check_builder;
 	for (auto func : funcs) {
-		append_format(check_builder, "\tif(!state->_%){print(\"% was not initialized.\\n\");result=false;}\n", func.name, func.name);
+		append_format(check_builder, "if(!state->_%){print(\"% was not initialized.\\n\");result=false;}\n", func.name, func.name);
 	}
+	write_entire_file(u8"../include/tgraphics/generated/check.h"s, as_bytes(to_string(check_builder)));
 
-	StringBuilder remap_builder;
+	StringBuilder assign_builder;
 	for (auto func : funcs) {
-		append_format(remap_builder, "\tstate->_% = [](State *_state", func.name);
+		append_format(assign_builder, "state->_% = [](State *_state", func.name);
 		if (func.args.size) {
-			append(remap_builder, ", ");
+			append(assign_builder, ", ");
 		}
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
-				append(remap_builder, ", ");
-			append_format(remap_builder, "% %", arg.type, arg.name);
+				append(assign_builder, ", ");
+			append_format(assign_builder, "% %", arg.type, arg.name);
 		}
-		append_format(remap_builder, ") -> % { return ((StateGL *)_state)->impl_%(", func.ret, func.name);
+		append_format(assign_builder, ") -> % { return ((StateGL *)_state)->impl_%(", func.ret, func.name);
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
-				append(remap_builder, ", ");
-			append(remap_builder, arg.name);
+				append(assign_builder, ", ");
+			append(assign_builder, arg.name);
 		}
-		append(remap_builder, "); };\n");
+		append(assign_builder, "); };\n");
 	}
-	auto definition_token = find(mapped_source.data, "APIS_DEFINITION;"b);
-	auto check_token = find(mapped_source.data, "APIS_CHECK;"b);
-	auto remap_token = find(mapped_source.data, "APIS_REMAP;"b);
-
-	write(destination_file, Span(mapped_source.data.begin(), definition_token.begin()));
-	write(destination_file, as_bytes(to_string(defn_builder)));
-	write(destination_file, Span(definition_token.end(), check_token.begin()));
-	write(destination_file, as_bytes(to_string(check_builder)));
-	write(destination_file, Span(check_token.end(), remap_token.begin()));
-	write(destination_file, as_bytes(to_string(remap_builder)));
-	write(destination_file, Span(remap_token.end(), mapped_source.data.end()));
-
-	print("Done\n");
-
-	run_test();
+	write_entire_file(u8"../include/tgraphics/generated/assign.h"s, as_bytes(to_string(assign_builder)));
 
 	return 0;
 }

@@ -196,110 +196,21 @@ struct State {
 	RenderTarget *back_buffer;
 	v2u min_texture_size;
 
-	void (*_clear)(State *_state, RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth);
-	void clear(RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth) { return _clear(this, render_target, flags, color, depth); }
-	void (*_present)(State *_state);
-	void present() { return _present(this); }
-	void (*_draw)(State *_state, u32 vertex_count, u32 start_vertex);
-	void draw(u32 vertex_count, u32 start_vertex) { return _draw(this, vertex_count, start_vertex); }
-	void (*_draw_indexed)(State *_state, u32 index_count);
-	void draw_indexed(u32 index_count) { return _draw_indexed(this, index_count); }
-	void (*_set_viewport)(State *_state, Viewport viewport);
-	void set_viewport(Viewport viewport) { return _set_viewport(this, viewport); }
-	void (*_resize_render_targets)(State *_state, u32 w, u32 h);
-	void resize_render_targets(u32 w, u32 h) { return _resize_render_targets(this, w, h); }
-	void (*_set_shader)(State *_state, Shader * shader);
-	void set_shader(Shader * shader) { return _set_shader(this, shader); }
-	void (*_update_shader_constants)(State *_state, ShaderConstants * constants, void const * source, u32 offset, u32 size);
-	void update_shader_constants(ShaderConstants * constants, void const * source, u32 offset, u32 size) { return _update_shader_constants(this, constants, source, offset, size); }
-	Shader * (*_create_shader)(State *_state, Span<utf8> source);
-	Shader * create_shader(Span<utf8> source) { return _create_shader(this, source); }
-	CameraMatrices (*_calculate_perspective_matrices)(State *_state, v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane);
-	CameraMatrices calculate_perspective_matrices(v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane) { return _calculate_perspective_matrices(this, position, rotation, aspect_ratio, fov_radians, near_plane, far_plane); }
-	VertexBuffer * (*_create_vertex_buffer)(State *_state, Span<u8> buffer, Span<ElementType> vertex_descriptor);
-	VertexBuffer * create_vertex_buffer(Span<u8> buffer, Span<ElementType> vertex_descriptor) { return _create_vertex_buffer(this, buffer, vertex_descriptor); }
-	void (*_set_vertex_buffer)(State *_state, VertexBuffer * buffer);
-	void set_vertex_buffer(VertexBuffer * buffer) { return _set_vertex_buffer(this, buffer); }
-	IndexBuffer * (*_create_index_buffer)(State *_state, Span<u8> buffer, u32 index_size);
-	IndexBuffer * create_index_buffer(Span<u8> buffer, u32 index_size) { return _create_index_buffer(this, buffer, index_size); }
-	void (*_set_index_buffer)(State *_state, IndexBuffer * buffer);
-	void set_index_buffer(IndexBuffer * buffer) { return _set_index_buffer(this, buffer); }
-	void (*_set_vsync)(State *_state, bool enable);
-	void set_vsync(bool enable) { return _set_vsync(this, enable); }
-	Texture2D * (*_create_texture_2d)(State *_state, u32 width, u32 height, void const * data, Format format);
-	Texture2D * create_texture_2d(u32 width, u32 height, void const * data, Format format) { return _create_texture_2d(this, width, height, data, format); }
-	void (*_set_texture_2d)(State *_state, Texture2D * texture, u32 slot);
-	void set_texture_2d(Texture2D * texture, u32 slot) { return _set_texture_2d(this, texture, slot); }
-	void (*_resize_texture_2d)(State *_state, Texture2D * texture, u32 w, u32 h);
-	void resize_texture_2d(Texture2D * texture, u32 w, u32 h) { return _resize_texture_2d(this, texture, w, h); }
-	void (*_read_texture_2d)(State *_state, Texture2D * texture, Span<u8> data);
-	void read_texture_2d(Texture2D * texture, Span<u8> data) { return _read_texture_2d(this, texture, data); }
-	void (*_update_texture_2d)(State *_state, Texture2D * texture, u32 width, u32 height, void * data);
-	void update_texture_2d(Texture2D * texture, u32 width, u32 height, void * data) { return _update_texture_2d(this, texture, width, height, data); }
-	void (*_generate_mipmaps_2d)(State *_state, Texture2D * texture);
-	void generate_mipmaps_2d(Texture2D * texture) { return _generate_mipmaps_2d(this, texture); }
-	void (*_set_sampler)(State *_state, Filtering filtering, Comparison comparison, u32 slot);
-	void set_sampler(Filtering filtering, Comparison comparison, u32 slot) { return _set_sampler(this, filtering, comparison, slot); }
-	RenderTarget * (*_create_render_target)(State *_state, Texture2D * color, Texture2D * depth);
-	RenderTarget * create_render_target(Texture2D * color, Texture2D * depth) { return _create_render_target(this, color, depth); }
-	void (*_set_render_target)(State *_state, RenderTarget * target);
-	void set_render_target(RenderTarget * target) { return _set_render_target(this, target); }
-	TextureCube * (*_create_texture_cube)(State *_state, u32 size, void ** data, Format format);
-	TextureCube * create_texture_cube(u32 size, void ** data, Format format) { return _create_texture_cube(this, size, data, format); }
-	void (*_set_texture_cube)(State *_state, TextureCube * texture, u32 slot);
-	void set_texture_cube(TextureCube * texture, u32 slot) { return _set_texture_cube(this, texture, slot); }
-	void (*_generate_mipmaps_cube)(State *_state, TextureCube * texture, GenerateCubeMipmapParams params);
-	void generate_mipmaps_cube(TextureCube * texture, GenerateCubeMipmapParams params) { return _generate_mipmaps_cube(this, texture, params); }
-	ShaderConstants * (*_create_shader_constants)(State *_state, umm size);
-	ShaderConstants * create_shader_constants(umm size) { return _create_shader_constants(this, size); }
-	void (*_set_shader_constants)(State *_state, ShaderConstants * constants, u32 slot);
-	void set_shader_constants(ShaderConstants * constants, u32 slot) { return _set_shader_constants(this, constants, slot); }
-	void (*_set_rasterizer)(State *_state, RasterizerState state);
-	void set_rasterizer(RasterizerState state) { return _set_rasterizer(this, state); }
-	RasterizerState (*_get_rasterizer)(State *_state);
-	RasterizerState get_rasterizer() { return _get_rasterizer(this); }
-	ComputeShader * (*_create_compute_shader)(State *_state, Span<utf8> source);
-	ComputeShader * create_compute_shader(Span<utf8> source) { return _create_compute_shader(this, source); }
-	void (*_set_compute_shader)(State *_state, ComputeShader * shader);
-	void set_compute_shader(ComputeShader * shader) { return _set_compute_shader(this, shader); }
-	void (*_dispatch_compute_shader)(State *_state, u32 x, u32 y, u32 z);
-	void dispatch_compute_shader(u32 x, u32 y, u32 z) { return _dispatch_compute_shader(this, x, y, z); }
-	ComputeBuffer * (*_create_compute_buffer)(State *_state, u32 size);
-	ComputeBuffer * create_compute_buffer(u32 size) { return _create_compute_buffer(this, size); }
-	void (*_read_compute_buffer)(State *_state, ComputeBuffer * buffer, void * data);
-	void read_compute_buffer(ComputeBuffer * buffer, void * data) { return _read_compute_buffer(this, buffer, data); }
-	void (*_set_compute_buffer)(State *_state, ComputeBuffer * buffer, u32 slot);
-	void set_compute_buffer(ComputeBuffer * buffer, u32 slot) { return _set_compute_buffer(this, buffer, slot); }
-	void (*_set_compute_texture)(State *_state, Texture2D * texture, u32 slot);
-	void set_compute_texture(Texture2D * texture, u32 slot) { return _set_compute_texture(this, texture, slot); }
-	void (*_set_blend)(State *_state, BlendFunction function, Blend source, Blend destination);
-	void set_blend(BlendFunction function, Blend source, Blend destination) { return _set_blend(this, function, source, destination); }
-	void (*_set_topology)(State *_state, Topology topology);
-	void set_topology(Topology topology) { return _set_topology(this, topology); }
-	void (*_update_vertex_buffer)(State *_state, VertexBuffer * buffer, Span<u8> data);
-	void update_vertex_buffer(VertexBuffer * buffer, Span<u8> data) { return _update_vertex_buffer(this, buffer, data); }
-	void (*_set_scissor)(State *_state, Viewport viewport);
-	void set_scissor(Viewport viewport) { return _set_scissor(this, viewport); }
-	void (*_disable_scissor)(State *_state);
-	void disable_scissor() { return _disable_scissor(this); }
-	void * (*_map_shader_constants)(State *_state, ShaderConstants * constants, Access access);
-	void * map_shader_constants(ShaderConstants * constants, Access access) { return _map_shader_constants(this, constants, access); }
-	void (*_unmap_shader_constants)(State *_state, ShaderConstants * constants);
-	void unmap_shader_constants(ShaderConstants * constants) { return _unmap_shader_constants(this, constants); }
-	void (*_set_cull)(State *_state, Cull cull);
-	void set_cull(Cull cull) { return _set_cull(this, cull); }
-	void (*_disable_blend)(State *_state);
-	void disable_blend() { return _disable_blend(this); }
-	void (*_disable_depth_clip)(State *_state);
-	void disable_depth_clip() { return _disable_depth_clip(this); }
-	void (*_enable_depth_clip)(State *_state);
-	void enable_depth_clip() { return _enable_depth_clip(this); }
+	bool debug_present_after_draw = false;
 
+	u32 draw_call_count = 0;
+
+	#include "generated/definition.h"
 
 	void draw(u32 vertex_count) { return draw(vertex_count, 0); }
+
 	void set_viewport(u32 w, u32 h) { return set_viewport({.min = {}, .max = {(s32)w, (s32)h}}); }
 	void set_viewport(v2u size) { return set_viewport({.min={}, .max=(v2s)size}); }
-	void resize_render_targets(v2u size) { return resize_render_targets(size.x, size.y); }
+
+	void set_scissor(u32 w, u32 h) { return set_scissor({.min = {}, .max = {(s32)w, (s32)h}}); }
+	void set_scissor(v2u size) { return set_scissor({.min={}, .max=(v2s)size}); }
+
+	void on_window_resize(v2u size) { return on_window_resize(size.x, size.y); }
 
 	Texture2D *create_texture_2d(v2u size, void const *data, Format format) {
 		return create_texture_2d(size.x, size.y, data, format);
@@ -495,56 +406,7 @@ namespace gl    { State *init(InitInfo init_info); void deinit(State *); }
 
 static bool check_api(State *state) {
 	bool result = true;
-	if(!state->_clear){print("clear was not initialized.\n");result=false;}
-	if(!state->_present){print("present was not initialized.\n");result=false;}
-	if(!state->_draw){print("draw was not initialized.\n");result=false;}
-	if(!state->_draw_indexed){print("draw_indexed was not initialized.\n");result=false;}
-	if(!state->_set_viewport){print("set_viewport was not initialized.\n");result=false;}
-	if(!state->_resize_render_targets){print("resize_render_targets was not initialized.\n");result=false;}
-	if(!state->_set_shader){print("set_shader was not initialized.\n");result=false;}
-	if(!state->_update_shader_constants){print("update_shader_constants was not initialized.\n");result=false;}
-	if(!state->_create_shader){print("create_shader was not initialized.\n");result=false;}
-	if(!state->_calculate_perspective_matrices){print("calculate_perspective_matrices was not initialized.\n");result=false;}
-	if(!state->_create_vertex_buffer){print("create_vertex_buffer was not initialized.\n");result=false;}
-	if(!state->_set_vertex_buffer){print("set_vertex_buffer was not initialized.\n");result=false;}
-	if(!state->_create_index_buffer){print("create_index_buffer was not initialized.\n");result=false;}
-	if(!state->_set_index_buffer){print("set_index_buffer was not initialized.\n");result=false;}
-	if(!state->_set_vsync){print("set_vsync was not initialized.\n");result=false;}
-	if(!state->_create_texture_2d){print("create_texture_2d was not initialized.\n");result=false;}
-	if(!state->_set_texture_2d){print("set_texture_2d was not initialized.\n");result=false;}
-	if(!state->_resize_texture_2d){print("resize_texture_2d was not initialized.\n");result=false;}
-	if(!state->_read_texture_2d){print("read_texture_2d was not initialized.\n");result=false;}
-	if(!state->_update_texture_2d){print("update_texture_2d was not initialized.\n");result=false;}
-	if(!state->_generate_mipmaps_2d){print("generate_mipmaps_2d was not initialized.\n");result=false;}
-	if(!state->_set_sampler){print("set_sampler was not initialized.\n");result=false;}
-	if(!state->_create_render_target){print("create_render_target was not initialized.\n");result=false;}
-	if(!state->_set_render_target){print("set_render_target was not initialized.\n");result=false;}
-	if(!state->_create_texture_cube){print("create_texture_cube was not initialized.\n");result=false;}
-	if(!state->_set_texture_cube){print("set_texture_cube was not initialized.\n");result=false;}
-	if(!state->_generate_mipmaps_cube){print("generate_mipmaps_cube was not initialized.\n");result=false;}
-	if(!state->_create_shader_constants){print("create_shader_constants was not initialized.\n");result=false;}
-	if(!state->_set_shader_constants){print("set_shader_constants was not initialized.\n");result=false;}
-	if(!state->_set_rasterizer){print("set_rasterizer was not initialized.\n");result=false;}
-	if(!state->_get_rasterizer){print("get_rasterizer was not initialized.\n");result=false;}
-	if(!state->_create_compute_shader){print("create_compute_shader was not initialized.\n");result=false;}
-	if(!state->_set_compute_shader){print("set_compute_shader was not initialized.\n");result=false;}
-	if(!state->_dispatch_compute_shader){print("dispatch_compute_shader was not initialized.\n");result=false;}
-	if(!state->_create_compute_buffer){print("create_compute_buffer was not initialized.\n");result=false;}
-	if(!state->_read_compute_buffer){print("read_compute_buffer was not initialized.\n");result=false;}
-	if(!state->_set_compute_buffer){print("set_compute_buffer was not initialized.\n");result=false;}
-	if(!state->_set_compute_texture){print("set_compute_texture was not initialized.\n");result=false;}
-	if(!state->_set_blend){print("set_blend was not initialized.\n");result=false;}
-	if(!state->_set_topology){print("set_topology was not initialized.\n");result=false;}
-	if(!state->_update_vertex_buffer){print("update_vertex_buffer was not initialized.\n");result=false;}
-	if(!state->_set_scissor){print("set_scissor was not initialized.\n");result=false;}
-	if(!state->_disable_scissor){print("disable_scissor was not initialized.\n");result=false;}
-	if(!state->_map_shader_constants){print("map_shader_constants was not initialized.\n");result=false;}
-	if(!state->_unmap_shader_constants){print("unmap_shader_constants was not initialized.\n");result=false;}
-	if(!state->_set_cull){print("set_cull was not initialized.\n");result=false;}
-	if(!state->_disable_blend){print("disable_blend was not initialized.\n");result=false;}
-	if(!state->_disable_depth_clip){print("disable_depth_clip was not initialized.\n");result=false;}
-	if(!state->_enable_depth_clip){print("enable_depth_clip was not initialized.\n");result=false;}
-
+	#include "generated/check.h"
 	return result;
 }
 
@@ -874,7 +736,16 @@ struct StateGL : State {
 		GLbitfield mask = 0;
 		if (flags & ClearFlags_color) { mask |= GL_COLOR_BUFFER_BIT; glClearColor(color.x, color.y, color.z, color.w); }
 		if (flags & ClearFlags_depth) { mask |= GL_DEPTH_BUFFER_BIT; glClearDepth(depth); }
+
+		if (scissor_enabled) {
+			glDisable(GL_SCISSOR_TEST);
+		}
+
 		glClear(mask);
+
+		if (scissor_enabled) {
+			glEnable(GL_SCISSOR_TEST);
+		}
 
 		if (previously_bound_render_target) {
 			bind_render_target(*previously_bound_render_target);
@@ -884,19 +755,27 @@ struct StateGL : State {
 		gl::present();
 	}
 	auto impl_draw(u32 vertex_count, u32 start_vertex) {
+		++draw_call_count;
 		assert(vertex_count, "tgraphics::draw called with 0 vertices");
 		glDrawArrays(current_topology, start_vertex, vertex_count);
+		if (debug_present_after_draw && currently_bound_render_target == &back_buffer) {
+			impl_present();
+		}
 	}
 	auto impl_draw_indexed(u32 index_count) {
+		++draw_call_count;
 		assert(current_index_buffer, "Index buffer was not bound");
 		glDrawElements(current_topology, index_count, current_index_buffer->type, 0);
+		if (debug_present_after_draw && currently_bound_render_target == &back_buffer) {
+			impl_present();
+		}
 	}
 	auto impl_set_viewport(Viewport viewport) {
 		assert(viewport.max.x - viewport.min.x > 0);
 		assert(viewport.max.y - viewport.min.y > 0);
 		glViewport(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
 	}
-	auto impl_resize_render_targets(u32 width, u32 height) {
+	auto impl_on_window_resize(u32 width, u32 height) {
 		back_buffer_color.size = back_buffer_depth.size = {width, height};
 	}
 	auto impl_set_shader(Shader *_shader) {
@@ -918,7 +797,7 @@ struct StateGL : State {
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	}
 	auto impl_create_shader(Span<utf8> source) -> Shader * {
-		auto &shader = shaders.add();
+		auto &shader = *shaders.add().pointer;
 		auto vertex   = tl::gl::create_shader(GL_VERTEX_SHADER, 430, true, (Span<char>)source);
 		auto fragment = tl::gl::create_shader(GL_FRAGMENT_SHADER, 430, true, (Span<char>)source);
 		assert(vertex);
@@ -931,7 +810,7 @@ struct StateGL : State {
 		return &shader;
 	}
 	auto impl_create_shader_constants(umm size) -> ShaderConstants * {
-		auto &constants = shader_constants.add();
+		auto &constants = *shader_constants.add().pointer;
 		glGenBuffers(1, &constants.uniform_buffer);
 		glBindBuffer(GL_UNIFORM_BUFFER, constants.uniform_buffer);
 		glBufferData(GL_UNIFORM_BUFFER, size, NULL, GL_STATIC_DRAW);
@@ -947,7 +826,7 @@ struct StateGL : State {
 		return result;
 	}
 	auto impl_create_vertex_buffer(Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * {
-		VertexBufferImpl &result = vertex_buffers.add();
+		VertexBufferImpl &result = *vertex_buffers.add().pointer;
 		glGenBuffers(1, &result.buffer);
 		glGenVertexArrays(1, &result.array);
 
@@ -979,7 +858,7 @@ struct StateGL : State {
 		glBindVertexArray(buffer ? buffer->array : 0);
 	}
 	auto impl_create_index_buffer(Span<u8> buffer, u32 index_size) -> IndexBuffer * {
-		IndexBufferImpl &result = index_buffers.add();
+		IndexBufferImpl &result = *index_buffers.add().pointer;
 		result.type = get_index_type_from_size(index_size);
 		result.count = buffer.size / index_size;
 
@@ -1009,7 +888,7 @@ struct StateGL : State {
 		auto color = (Texture2DImpl *)_color;
 		auto depth = (Texture2DImpl *)_depth;
 
-		auto &result = render_targets.add();
+		auto &result = *render_targets.add().pointer;
 
 		result.color = color;
 		result.depth = depth;
@@ -1060,7 +939,7 @@ struct StateGL : State {
 		}
 	}
 	auto impl_create_texture_2d(u32 width, u32 height, void const *data, Format format) -> Texture2D * {
-		auto &result = textures_2d.add();
+		auto &result = *textures_2d.add().pointer;
 
 		result.size = {width, height};
 
@@ -1103,7 +982,7 @@ struct StateGL : State {
 		return current_rasterizer;
 	}
 	auto impl_create_compute_shader(Span<utf8> source) -> ComputeShader * {
-		auto &result = compute_shaders.add();
+		auto &result = *compute_shaders.add().pointer;
 		result.program = create_program({
 			.compute = tl::gl::create_shader(GL_COMPUTE_SHADER, 430, true, (Span<char>)source),
 		});
@@ -1119,7 +998,7 @@ struct StateGL : State {
 	}
 	auto impl_resize_texture_2d(Texture2D *texture, u32 width, u32 height) { resize_texture_gl(texture, width, height); }
 	auto impl_create_compute_buffer(u32 size) -> ComputeBuffer * {
-		auto &result = compute_buffers.add();
+		auto &result = *compute_buffers.add().pointer;
 		result.size = size;
 		glGenBuffers(1, &result.buffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, result.buffer);
@@ -1186,7 +1065,7 @@ struct StateGL : State {
 		if (!depth_clip_enabled) { depth_clip_enabled = true ; glDisable(GL_DEPTH_CLAMP); }
 	}
 	auto impl_create_texture_cube(u32 size, void *data[6], Format format) -> TextureCube * {
-		auto &result = textures_cube.add();
+		auto &result = *textures_cube.add().pointer;
 
 		// result.size = {width, height}
 
@@ -1325,56 +1204,7 @@ State *init(InitInfo init_info) {
 	//glEnable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_LESS);
 
-	state->_clear = [](State *_state, RenderTarget * render_target, ClearFlags flags, v4f color, f32 depth) -> void { return ((StateGL *)_state)->impl_clear(render_target, flags, color, depth); };
-	state->_present = [](State *_state) -> void { return ((StateGL *)_state)->impl_present(); };
-	state->_draw = [](State *_state, u32 vertex_count, u32 start_vertex) -> void { return ((StateGL *)_state)->impl_draw(vertex_count, start_vertex); };
-	state->_draw_indexed = [](State *_state, u32 index_count) -> void { return ((StateGL *)_state)->impl_draw_indexed(index_count); };
-	state->_set_viewport = [](State *_state, Viewport viewport) -> void { return ((StateGL *)_state)->impl_set_viewport(viewport); };
-	state->_resize_render_targets = [](State *_state, u32 w, u32 h) -> void { return ((StateGL *)_state)->impl_resize_render_targets(w, h); };
-	state->_set_shader = [](State *_state, Shader * shader) -> void { return ((StateGL *)_state)->impl_set_shader(shader); };
-	state->_update_shader_constants = [](State *_state, ShaderConstants * constants, void const * source, u32 offset, u32 size) -> void { return ((StateGL *)_state)->impl_update_shader_constants(constants, source, offset, size); };
-	state->_create_shader = [](State *_state, Span<utf8> source) -> Shader * { return ((StateGL *)_state)->impl_create_shader(source); };
-	state->_calculate_perspective_matrices = [](State *_state, v3f position, v3f rotation, f32 aspect_ratio, f32 fov_radians, f32 near_plane, f32 far_plane) -> CameraMatrices { return ((StateGL *)_state)->impl_calculate_perspective_matrices(position, rotation, aspect_ratio, fov_radians, near_plane, far_plane); };
-	state->_create_vertex_buffer = [](State *_state, Span<u8> buffer, Span<ElementType> vertex_descriptor) -> VertexBuffer * { return ((StateGL *)_state)->impl_create_vertex_buffer(buffer, vertex_descriptor); };
-	state->_set_vertex_buffer = [](State *_state, VertexBuffer * buffer) -> void { return ((StateGL *)_state)->impl_set_vertex_buffer(buffer); };
-	state->_create_index_buffer = [](State *_state, Span<u8> buffer, u32 index_size) -> IndexBuffer * { return ((StateGL *)_state)->impl_create_index_buffer(buffer, index_size); };
-	state->_set_index_buffer = [](State *_state, IndexBuffer * buffer) -> void { return ((StateGL *)_state)->impl_set_index_buffer(buffer); };
-	state->_set_vsync = [](State *_state, bool enable) -> void { return ((StateGL *)_state)->impl_set_vsync(enable); };
-	state->_create_texture_2d = [](State *_state, u32 width, u32 height, void const * data, Format format) -> Texture2D * { return ((StateGL *)_state)->impl_create_texture_2d(width, height, data, format); };
-	state->_set_texture_2d = [](State *_state, Texture2D * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_texture_2d(texture, slot); };
-	state->_resize_texture_2d = [](State *_state, Texture2D * texture, u32 w, u32 h) -> void { return ((StateGL *)_state)->impl_resize_texture_2d(texture, w, h); };
-	state->_read_texture_2d = [](State *_state, Texture2D * texture, Span<u8> data) -> void { return ((StateGL *)_state)->impl_read_texture_2d(texture, data); };
-	state->_update_texture_2d = [](State *_state, Texture2D * texture, u32 width, u32 height, void * data) -> void { return ((StateGL *)_state)->impl_update_texture_2d(texture, width, height, data); };
-	state->_generate_mipmaps_2d = [](State *_state, Texture2D * texture) -> void { return ((StateGL *)_state)->impl_generate_mipmaps_2d(texture); };
-	state->_set_sampler = [](State *_state, Filtering filtering, Comparison comparison, u32 slot) -> void { return ((StateGL *)_state)->impl_set_sampler(filtering, comparison, slot); };
-	state->_create_render_target = [](State *_state, Texture2D * color, Texture2D * depth) -> RenderTarget * { return ((StateGL *)_state)->impl_create_render_target(color, depth); };
-	state->_set_render_target = [](State *_state, RenderTarget * target) -> void { return ((StateGL *)_state)->impl_set_render_target(target); };
-	state->_create_texture_cube = [](State *_state, u32 size, void ** data, Format format) -> TextureCube * { return ((StateGL *)_state)->impl_create_texture_cube(size, data, format); };
-	state->_set_texture_cube = [](State *_state, TextureCube * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_texture_cube(texture, slot); };
-	state->_generate_mipmaps_cube = [](State *_state, TextureCube * texture, GenerateCubeMipmapParams params) -> void { return ((StateGL *)_state)->impl_generate_mipmaps_cube(texture, params); };
-	state->_create_shader_constants = [](State *_state, umm size) -> ShaderConstants * { return ((StateGL *)_state)->impl_create_shader_constants(size); };
-	state->_set_shader_constants = [](State *_state, ShaderConstants * constants, u32 slot) -> void { return ((StateGL *)_state)->impl_set_shader_constants(constants, slot); };
-	state->_set_rasterizer = [](State *_state, RasterizerState state) -> void { return ((StateGL *)_state)->impl_set_rasterizer(state); };
-	state->_get_rasterizer = [](State *_state) -> RasterizerState { return ((StateGL *)_state)->impl_get_rasterizer(); };
-	state->_create_compute_shader = [](State *_state, Span<utf8> source) -> ComputeShader * { return ((StateGL *)_state)->impl_create_compute_shader(source); };
-	state->_set_compute_shader = [](State *_state, ComputeShader * shader) -> void { return ((StateGL *)_state)->impl_set_compute_shader(shader); };
-	state->_dispatch_compute_shader = [](State *_state, u32 x, u32 y, u32 z) -> void { return ((StateGL *)_state)->impl_dispatch_compute_shader(x, y, z); };
-	state->_create_compute_buffer = [](State *_state, u32 size) -> ComputeBuffer * { return ((StateGL *)_state)->impl_create_compute_buffer(size); };
-	state->_read_compute_buffer = [](State *_state, ComputeBuffer * buffer, void * data) -> void { return ((StateGL *)_state)->impl_read_compute_buffer(buffer, data); };
-	state->_set_compute_buffer = [](State *_state, ComputeBuffer * buffer, u32 slot) -> void { return ((StateGL *)_state)->impl_set_compute_buffer(buffer, slot); };
-	state->_set_compute_texture = [](State *_state, Texture2D * texture, u32 slot) -> void { return ((StateGL *)_state)->impl_set_compute_texture(texture, slot); };
-	state->_set_blend = [](State *_state, BlendFunction function, Blend source, Blend destination) -> void { return ((StateGL *)_state)->impl_set_blend(function, source, destination); };
-	state->_set_topology = [](State *_state, Topology topology) -> void { return ((StateGL *)_state)->impl_set_topology(topology); };
-	state->_update_vertex_buffer = [](State *_state, VertexBuffer * buffer, Span<u8> data) -> void { return ((StateGL *)_state)->impl_update_vertex_buffer(buffer, data); };
-	state->_set_scissor = [](State *_state, Viewport viewport) -> void { return ((StateGL *)_state)->impl_set_scissor(viewport); };
-	state->_disable_scissor = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_scissor(); };
-	state->_map_shader_constants = [](State *_state, ShaderConstants * constants, Access access) -> void * { return ((StateGL *)_state)->impl_map_shader_constants(constants, access); };
-	state->_unmap_shader_constants = [](State *_state, ShaderConstants * constants) -> void { return ((StateGL *)_state)->impl_unmap_shader_constants(constants); };
-	state->_set_cull = [](State *_state, Cull cull) -> void { return ((StateGL *)_state)->impl_set_cull(cull); };
-	state->_disable_blend = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_blend(); };
-	state->_disable_depth_clip = [](State *_state) -> void { return ((StateGL *)_state)->impl_disable_depth_clip(); };
-	state->_enable_depth_clip = [](State *_state) -> void { return ((StateGL *)_state)->impl_enable_depth_clip(); };
-
+	#include "generated/assign.h"
 
 	return state;
 }
