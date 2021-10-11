@@ -10,8 +10,8 @@ void (*_set_blend)(State *_state, BlendFunction function, Blend source, Blend de
 void set_blend(BlendFunction function, Blend source, Blend destination) { return _set_blend(this, function, source, destination); }
 void (*_set_topology)(State *_state, Topology topology);
 void set_topology(Topology topology) { return _set_topology(this, topology); }
-void (*_set_scissor)(State *_state, Viewport viewport);
-void set_scissor(Viewport viewport) { return _set_scissor(this, viewport); }
+void (*_set_scissor)(State *_state, s32 x, s32 y, u32 w, u32 h);
+void set_scissor(s32 x, s32 y, u32 w, u32 h) { return _set_scissor(this, x, y, w, h); }
 void (*_disable_scissor)(State *_state);
 void disable_scissor() { return _disable_scissor(this); }
 void (*_set_cull)(State *_state, Cull cull);
@@ -22,8 +22,8 @@ void (*_disable_depth_clip)(State *_state);
 void disable_depth_clip() { return _disable_depth_clip(this); }
 void (*_enable_depth_clip)(State *_state);
 void enable_depth_clip() { return _enable_depth_clip(this); }
-void (*_set_viewport)(State *_state, Viewport viewport);
-void set_viewport(Viewport viewport) { return _set_viewport(this, viewport); }
+void (*_set_viewport)(State *_state, s32 x, s32 y, u32 w, u32 h);
+void set_viewport(s32 x, s32 y, u32 w, u32 h) { return _set_viewport(this, x, y, w, h); }
 void (*_draw)(State *_state, u32 vertex_count, u32 start_vertex);
 void draw(u32 vertex_count, u32 start_vertex) { return _draw(this, vertex_count, start_vertex); }
 void (*_draw_indexed)(State *_state, u32 index_count);
@@ -96,3 +96,5 @@ void (*_set_compute_buffer)(State *_state, ComputeBuffer * buffer, u32 slot);
 void set_compute_buffer(ComputeBuffer * buffer, u32 slot) { return _set_compute_buffer(this, buffer, slot); }
 void (*_set_compute_texture)(State *_state, Texture2D * texture, u32 slot);
 void set_compute_texture(Texture2D * texture, u32 slot) { return _set_compute_texture(this, texture, slot); }
+void (*_init_colored_rectangle_shader)(State *_state);
+void init_colored_rectangle_shader() { return _init_colored_rectangle_shader(this); }

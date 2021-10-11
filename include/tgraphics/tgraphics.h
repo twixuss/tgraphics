@@ -142,7 +142,7 @@ union TextureCubePaths {
 
 // min is bottom left
 // max is top right
-using Viewport = aabb<v2s>;
+using Rect = aabb<v2s>;
 
 using Access = u8;
 enum : Access {
@@ -204,11 +204,13 @@ struct State {
 
 	void draw(u32 vertex_count) { return draw(vertex_count, 0); }
 
-	void set_viewport(u32 w, u32 h) { return set_viewport({.min = {}, .max = {(s32)w, (s32)h}}); }
-	void set_viewport(v2u size) { return set_viewport({.min={}, .max=(v2s)size}); }
+	void set_viewport(u32 w, u32 h) { return set_viewport(0, 0, w, h); }
+	void set_viewport(v2u size) { return set_viewport(0, 0, size.x, size.y); }
+	void set_viewport(Rect v) { return set_viewport(v.min.x, v.min.y, v.size().x, v.size().y); }
 
-	void set_scissor(u32 w, u32 h) { return set_scissor({.min = {}, .max = {(s32)w, (s32)h}}); }
-	void set_scissor(v2u size) { return set_scissor({.min={}, .max=(v2s)size}); }
+	void set_scissor(u32 w, u32 h) { return set_scissor(0, 0, w, h); }
+	void set_scissor(v2u size) { return set_scissor(0, 0, size.x, size.y); }
+	void set_scissor(Rect v) { return set_scissor(v.min.x, v.min.y, v.size().x, v.size().y); }
 
 	void on_window_resize(v2u size) { return on_window_resize(size.x, size.y); }
 
@@ -352,6 +354,27 @@ struct State {
 		return unmap_shader_constants(constants.constants);
 	}
 
+
+	Shader *colored_rectangle_shader = 0;
+	struct ColoredRectangleShaderConstants {
+		v4f color;
+	};
+	TypedShaderConstants<ColoredRectangleShaderConstants> colored_rectangle_shader_constants;
+
+	void draw_rectangle(s32 x, s32 y, u32 w, u32 h, v4f color) {
+		if (!colored_rectangle_shader) {
+			init_colored_rectangle_shader();
+		}
+
+		set_shader(colored_rectangle_shader);
+		update_shader_constants(colored_rectangle_shader_constants, {.color = color});
+		set_shader_constants(colored_rectangle_shader_constants, 0);
+		set_viewport(x, y, w, h);
+		draw(3);
+	}
+	void draw_rectangle(Rect v, v4f color) {
+		return draw_rectangle(v.min.x, v.min.y, v.size().x, v.size().y, color);
+	}
 };
 
 #ifndef TGRAPHICS_IMPL
@@ -726,6 +749,34 @@ struct StateGL : State {
 	bool blend_enabled = false;
 	bool depth_clip_enabled = true;
 
+	auto impl_init_colored_rectangle_shader() {
+		colored_rectangle_shader_constants = create_shader_constants<ColoredRectangleShaderConstants>();
+		colored_rectangle_shader = create_shader(u8R"(
+layout(binding=0) uniform _ {
+	vec4 color;
+};
+
+#ifdef VERTEX_SHADER
+void main() {
+	vec2 verts[] = vec2[](
+		vec2(-1, 3),
+		vec2(-1,-1),
+		vec2( 3,-1)
+	);
+	gl_Position = vec4(verts[gl_VertexID], 0, 1);
+}
+#endif
+
+#ifdef FRAGMENT_SHADER
+out vec4 fragment_color;
+void main() {
+	fragment_color = color;
+}
+#endif
+
+)"s);
+	}
+
 	auto impl_clear(RenderTarget *_render_target, ClearFlags flags, v4f color, f32 depth) {
 		assert(_render_target);
 		auto &render_target = *(RenderTargetImpl *)_render_target;
@@ -770,10 +821,8 @@ struct StateGL : State {
 			impl_present();
 		}
 	}
-	auto impl_set_viewport(Viewport viewport) {
-		assert(viewport.max.x - viewport.min.x > 0);
-		assert(viewport.max.y - viewport.min.y > 0);
-		glViewport(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
+	auto impl_set_viewport(s32 x, s32 y, u32 w, u32 h) {
+		glViewport(x, y, w, h);
 	}
 	auto impl_on_window_resize(u32 width, u32 height) {
 		back_buffer_color.size = back_buffer_depth.size = {width, height};
@@ -1109,17 +1158,12 @@ struct StateGL : State {
 		auto &texture = *(TextureCubeImpl *)_texture;
 		glGenerateTextureMipmap(texture.texture);
 	}
-	auto impl_set_scissor(Viewport viewport) {
+	auto impl_set_scissor(s32 x, s32 y, u32 w, u32 h) {
 		if (!scissor_enabled) {
 			scissor_enabled = true;
 			glEnable(GL_SCISSOR_TEST);
 		}
-		assert(viewport.max.x - viewport.min.x > 0);
-		assert(viewport.max.y - viewport.min.y > 0);
-		if (!scissor_enabled) {
-			print(Print_warning, "tgraphics::set_scissor was called when scessor test is not enabled\n");
-		}
-		glScissor(viewport.min.x, viewport.min.y, viewport.size().x, viewport.size().y);
+		glScissor(x, y, w, h);
 	}
 	auto impl_disable_scissor() {
 		if (scissor_enabled) {
@@ -1562,7 +1606,7 @@ bool init(InitInfo init_info) {
 	_draw_indexed = [](u32 index_count) {
 		state.immediate_context->DrawIndexed(index_count, 0, 0);
 	};
-	_set_viewport = [](Viewport viewport) {
+	_set_viewport = [](Rect viewport) {
 		D3D11_VIEWPORT v = {
 			.TopLeftX = (FLOAT)viewport.min.x,
 			.TopLeftY = (FLOAT)viewport.min.y,

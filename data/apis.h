@@ -6,13 +6,13 @@ CameraMatrices calculate_perspective_matrices(v3f position, v3f rotation, f32 as
 
 void set_blend(BlendFunction function, Blend source, Blend destination);
 void set_topology(Topology topology);
-void set_scissor(Viewport viewport);
+void set_scissor(s32 x, s32 y, u32 w, u32 h);
 void disable_scissor();
 void set_cull(Cull cull);
 void disable_blend();
 void disable_depth_clip();
 void enable_depth_clip();
-void set_viewport(Viewport viewport);
+void set_viewport(s32 x, s32 y, u32 w, u32 h);
 
 void draw(u32 vertex_count, u32 start_vertex);
 void draw_indexed(u32 index_count);
@@ -61,3 +61,5 @@ ComputeBuffer *create_compute_buffer(u32 size);
 void read_compute_buffer(ComputeBuffer *buffer, void *data);
 void set_compute_buffer(ComputeBuffer *buffer, u32 slot);
 void set_compute_texture(Texture2D *texture, u32 slot);
+
+void init_colored_rectangle_shader();
