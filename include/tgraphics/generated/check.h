@@ -47,3 +47,4 @@ if(!state->_create_compute_buffer){print("create_compute_buffer was not initiali
 if(!state->_read_compute_buffer){print("read_compute_buffer was not initialized.\n");result=false;}
 if(!state->_set_compute_buffer){print("set_compute_buffer was not initialized.\n");result=false;}
 if(!state->_set_compute_texture){print("set_compute_texture was not initialized.\n");result=false;}
+if(!state->_init_colored_rectangle_shader){print("init_colored_rectangle_shader was not initialized.\n");result=false;}
