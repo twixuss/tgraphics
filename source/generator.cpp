@@ -1,6 +1,7 @@
 #include <tl/common.h>
 #include <tl/file.h>
 #include <tl/console.h>
+#include <tl/main.h>
 
 using namespace tl;
 
@@ -16,8 +17,8 @@ struct Token {
 	u32 column;
 };
 
-void append(StringBuilder &builder, Token token) {
-	append_format(builder, "'%:%:%'", token.view, token.line, token.column);
+umm append(StringBuilder &builder, Token token) {
+	return append_format(builder, "'{}:{}:{}'", token.view, token.line, token.column);
 }
 
 s32 tl_main(Span<Span<utf8>> args) {
@@ -27,7 +28,7 @@ s32 tl_main(Span<Span<utf8>> args) {
 	auto signature_path = tl_file_string("../data/apis.h"ts);
 	auto signature_file = read_entire_file(signature_path);
 	if (!signature_file.data) {
-		print("Failed to open %\n", signature_path);
+		print("Failed to open {}\n", signature_path);
 		return 1;
 	}
 
@@ -65,7 +66,7 @@ s32 tl_main(Span<Span<utf8>> args) {
 					++c;
 				}
 			}
-			t.view.size = c - t.view.data;
+			t.view.count = c - t.view.data;
 			push_token(t);
 		} else if (is_digit(*c)) {
 			Token t = {};
@@ -77,12 +78,12 @@ s32 tl_main(Span<Span<utf8>> args) {
 					++c;
 				}
 			}
-			t.view.size = c - t.view.data;
+			t.view.count = c - t.view.data;
 			push_token(t);
 		} else {
 			Token t = {};
 			t.view.data = c;
-			t.view.size = 1;
+			t.view.count = 1;
 			t.kind = *c;
 			switch (*c) {
 				case '(':
@@ -95,7 +96,7 @@ s32 tl_main(Span<Span<utf8>> args) {
 				case ']':
 				case '*': break;
 				default:
-					print("Failed to parse input file: character '%' is not part of the syntax\n", *c);
+					print("Failed to parse input file: character '{}' is not part of the syntax\n", *c);
 					return 2;
 			}
 			++c;
@@ -127,8 +128,8 @@ begin_parse:
 		}
 		++t;
 
-		if (pre_aruments.size < 2) {
-			print("Bad syntax before token %\n", *t);
+		if (pre_aruments.count < 2) {
+			print("Bad syntax before token {}\n", *t);
 			return 3;
 		}
 
@@ -151,7 +152,7 @@ begin_parse:
 		}
 		++t;
 		if (t->kind != ';') {
-			print("Expected ';' after declaration: %\n", *t);
+			print("Expected ';' after declaration: {}\n", *t);
 			return 3;
 		}
 		++t;
@@ -161,7 +162,7 @@ begin_parse:
 
 	auto write_entire_file = [&](Span<utf8> path, Span<u8> data) {
 		if (!tl::write_entire_file(path, data)) {
-			print(Print_error, "Failed to write %\n", path);
+			print(Print_error, "Failed to write {}\n", path);
 			return false;
 		}
 		return true;
@@ -170,26 +171,26 @@ begin_parse:
 	StringBuilder defn_builder;
 	for (auto func : funcs) {
 		// POINTER
-		append_format(defn_builder, "% (*_%)(State *_state", func.ret, func.name);
-		if (func.args.size) {
+		append_format(defn_builder, "{} (*_{})(State *_state", func.ret, func.name);
+		if (func.args.count) {
 			append(defn_builder, ", ");
 		}
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
 				append(defn_builder, ", ");
-			append_format(defn_builder, "% %", arg.type, arg.name);
+			append_format(defn_builder, "{} {}", arg.type, arg.name);
 		}
 		append(defn_builder, ");\n");
 
 		// FUNCTION
-		append_format(defn_builder, "% %(", func.ret, func.name);
+		append_format(defn_builder, "{} {}(", func.ret, func.name);
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
 				append(defn_builder, ", ");
-			append_format(defn_builder, "% %", arg.type, arg.name);
+			append_format(defn_builder, "{} {}", arg.type, arg.name);
 		}
-		append_format(defn_builder, ") { return _%(this", func.name);
-		if (func.args.size) {
+		append_format(defn_builder, ") {{ return _{}(this", func.name);
+		if (func.args.count) {
 			append(defn_builder, ", ");
 		}
 		for (auto &arg : func.args) {
@@ -203,22 +204,22 @@ begin_parse:
 
 	StringBuilder check_builder;
 	for (auto func : funcs) {
-		append_format(check_builder, "if(!state->_%){print(\"% was not initialized.\\n\");result=false;}\n", func.name, func.name);
+		append_format(check_builder, "if(!state->_{}){{print(\"{} was not initialized.\\n\");result=false;}}\n", func.name, func.name);
 	}
 	write_entire_file(u8"../include/tgraphics/generated/check.h"s, as_bytes(to_string(check_builder)));
 
 	StringBuilder assign_builder;
 	for (auto func : funcs) {
-		append_format(assign_builder, "state->_% = [](State *_state", func.name);
-		if (func.args.size) {
+		append_format(assign_builder, "state->_{} = [](State *_state", func.name);
+		if (func.args.count) {
 			append(assign_builder, ", ");
 		}
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
 				append(assign_builder, ", ");
-			append_format(assign_builder, "% %", arg.type, arg.name);
+			append_format(assign_builder, "{} {}", arg.type, arg.name);
 		}
-		append_format(assign_builder, ") -> % { return ((StateGL *)_state)->impl_%(", func.ret, func.name);
+		append_format(assign_builder, ") -> {} {{ return ((StateGL *)_state)->impl_{}(", func.ret, func.name);
 		for (auto &arg : func.args) {
 			if (&arg != func.args.data)
 				append(assign_builder, ", ");

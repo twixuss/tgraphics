@@ -182,7 +182,7 @@ TGRAPHICS_API Pixels load_pixels(Span<u8> data, LoadPixelsParams params = {});
 inline Pixels load_pixels(Span<utf8> path, LoadPixelsParams params = {}) {
 	auto file = read_entire_file(path);
 	if (!file.data) {
-		print(Print_error, "Failed to read file %.\n", path);
+		print(Print_error, "Failed to read file {}.\n", path);
 		return {};
 	}
 	return load_pixels(file, params);
@@ -255,7 +255,7 @@ struct State {
 	Texture2D *load_texture_2d(Span<utf8> path, LoadTextureParams params = {}) {
 		auto file = read_entire_file(path);
 		if (!file.data) {
-			print(Print_error, "Failed to read file %.\n", path);
+			print(Print_error, "Failed to read file {}.\n", path);
 			return {};
 		}
 		return load_texture_2d(file, params);
@@ -288,7 +288,7 @@ struct State {
 				}
 			}
 			if (fail) {
-				print(Print_error, "Failed to load cube texture (%) with these paths:\n\t%\n\t%\n\t%\n\t%\n\t%\n\t%\n"
+				print(Print_error, "Failed to load cube texture ({}) with these paths:\n\t{}\n\t{}\n\t{}\n\t{}\n\t{}\n\t{}\n"
 					, reason
 					, paths.paths[0]
 					, paths.paths[1]
@@ -454,7 +454,7 @@ Pixels load_pixels(Span<u8> data, LoadPixelsParams params) {
 		result.format = Format_rgba_u8n;
 	}
 	if (!result.data) {
-		print(Print_error, "Failed to parse texture. Reason: %.\n", stbi_failure_reason());
+		print(Print_error, "Failed to parse texture. Reason: {}.\n", stbi_failure_reason());
 		return {};
 	}
 	result.size = {(u32)width, (u32)height};
@@ -1426,14 +1426,14 @@ InputLayout *get_input_layout(Span<ElementType> vertex_descriptor) {
 			auto &type = vertex_descriptor[element_index];
 			auto semantic = (char)('A' + element_index);
 			D3D11_INPUT_ELEMENT_DESC element = {
-				.SemanticName = tformat("%%", semantic, '\0').data,
+				.SemanticName = tformat("{}{}", semantic, '\0').data,
 				.Format = get_element_format(type),
 				.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
 				.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
 			};
 			element_descs.add(element);
 			result.stride += get_element_size(type);
-			append_format(shader_builder, "% field%:%;", get_hlsl_type(type), element_index, semantic);
+			append_format(shader_builder, "{} field{}:{};", get_hlsl_type(type), element_index, semantic);
 		}
 		append(shader_builder, "};float4 main(in Input i):SV_Position{return 0;}");
 

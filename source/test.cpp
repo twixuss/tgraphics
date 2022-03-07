@@ -39,8 +39,8 @@ pixel_shader {
 }
 )"s;
 
-			print("GLSL:\n%", to_glsl(source));
-			print("HLSL:\n%", to_hlsl(source));
+			print("GLSL:\n{}", to_glsl(source));
+			print("HLSL:\n{}", to_hlsl(source));
 			*/
 
 			switch (t->api) {
