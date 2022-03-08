@@ -469,11 +469,11 @@ Pixels load_pixels(Span<u8> data, LoadPixelsParams params) {
 	stbi_set_flip_vertically_on_load(params.flip_y);
 
 	int width, height;
-	if (stbi_is_hdr_from_memory(data.data, data.size)) {
-		result.data = stbi_loadf_from_memory(data.data, data.size, &width, &height, 0, 4);
+	if (stbi_is_hdr_from_memory(data.data, data.count)) {
+		result.data = stbi_loadf_from_memory(data.data, data.count, &width, &height, 0, 4);
 		result.format = Format_rgba_f32;
 	} else {
-		result.data = stbi_load_from_memory(data.data, data.size, &width, &height, 0, 4);
+		result.data = stbi_load_from_memory(data.data, data.count, &width, &height, 0, 4);
 		result.format = Format_rgba_u8n;
 	}
 	if (!result.data) {
@@ -724,16 +724,16 @@ void resize_texture_gl(Texture2D *_texture, u32 width, u32 height) {
 }
 
 struct StateGL : State {
-	MaskedBlockList<ShaderImpl, 256> shaders;
-	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
-	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
-	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<Texture2DImpl, 256> textures_2d;
-	MaskedBlockList<TextureCubeImpl, 256> textures_cube;
-	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
-	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
-	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
-	StaticHashMap<SamplerKey, GLuint, 256> samplers;
+	StaticMaskedBlockList<ShaderImpl, 256> shaders;
+	StaticMaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	StaticMaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	StaticMaskedBlockList<RenderTargetImpl, 256> render_targets;
+	StaticMaskedBlockList<Texture2DImpl, 256> textures_2d;
+	StaticMaskedBlockList<TextureCubeImpl, 256> textures_cube;
+	StaticMaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	StaticMaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
+	StaticMaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	StaticBucketHashMap<SamplerKey, GLuint, 256> samplers;
 	IndexBufferImpl *current_index_buffer;
 	RenderTargetImpl back_buffer;
 	Texture2DImpl back_buffer_color;
@@ -882,7 +882,7 @@ void main() {
 		glBindVertexArray(result.array);
 
 		glBindBuffer(GL_ARRAY_BUFFER, result.buffer);
-		glBufferData(GL_ARRAY_BUFFER, buffer.size, buffer.data, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, buffer.count, buffer.data, GL_STATIC_DRAW);
 
 		u32 stride = 0;
 		for (auto &element : vertex_descriptor) {
@@ -890,7 +890,7 @@ void main() {
 		}
 
 		u32 offset = 0;
-		for (u32 element_index = 0; element_index < vertex_descriptor.size; ++element_index) {
+		for (u32 element_index = 0; element_index < vertex_descriptor.count; ++element_index) {
 			auto &element = vertex_descriptor[element_index];
 			glVertexAttribPointer(element_index, get_element_scalar_count(element), get_element_type(element), false, stride, (void const *)offset);
 			glEnableVertexAttribArray(element_index);
@@ -909,12 +909,12 @@ void main() {
 	auto impl_create_index_buffer(Span<u8> buffer, u32 index_size) -> IndexBuffer * {
 		IndexBufferImpl &result = *index_buffers.add().pointer;
 		result.type = get_index_type_from_size(index_size);
-		result.count = buffer.size / index_size;
+		result.count = buffer.count / index_size;
 
 		glGenBuffers(1, &result.buffer);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.buffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, buffer.size, buffer.data, GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, buffer.count, buffer.data, GL_STATIC_DRAW);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 		return &result;
@@ -1083,7 +1083,7 @@ void main() {
 	auto impl_read_texture_2d(Texture2D *_texture, Span<u8> data) {
 		assert(_texture);
 		auto &texture = *(Texture2DImpl *)_texture;
-		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.size, data.data);
+		glGetTextureImage(texture.texture, 0, texture.format, texture.type, data.count, data.data);
 	}
 	auto impl_set_blend(BlendFunction function, Blend source, Blend destination) {
 		if (!blend_enabled) {
@@ -1139,7 +1139,7 @@ void main() {
 	auto impl_update_vertex_buffer(VertexBuffer *_buffer, Span<u8> data) {
 		auto &buffer = *(VertexBufferImpl *)_buffer;
 		glBindBuffer(GL_ARRAY_BUFFER, buffer.buffer);
-		glBufferData(GL_ARRAY_BUFFER, data.size, data.data, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, data.count, data.data, GL_STATIC_DRAW);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 	auto impl_update_texture_2d(Texture2D *_texture, u32 width, u32 height, void *data) {
@@ -1255,14 +1255,14 @@ State *init(InitInfo init_info) {
 
 void deinit(State *state) {
 	/*
-	MaskedBlockList<ShaderImpl, 256> shaders;
-	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
-	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
-	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<Texture2DImpl, 256> textures;
-	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
-	MaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
-	MaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
+	StaticMaskedBlockList<ShaderImpl, 256> shaders;
+	StaticMaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	StaticMaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	StaticMaskedBlockList<RenderTargetImpl, 256> render_targets;
+	StaticMaskedBlockList<Texture2DImpl, 256> textures;
+	StaticMaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	StaticMaskedBlockList<ComputeShaderImpl, 256> compute_shaders;
+	StaticMaskedBlockList<ComputeBufferImpl, 256> compute_buffers;
 	IndexBufferImpl *current_index_buffer;
 	RenderTargetImpl back_buffer;
 	Texture2DImpl back_buffer_color;
@@ -1349,12 +1349,12 @@ struct State {
 	Texture2DImpl back_buffer_depth;
 	IDXGISwapChain *swap_chain = 0;
 	UINT sync_interval = 1;
-	MaskedBlockList<ShaderImpl, 256> shaders;
-	MaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
-	MaskedBlockList<IndexBufferImpl, 256> index_buffers;
-	MaskedBlockList<RenderTargetImpl, 256> render_targets;
-	MaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
-	MaskedBlockList<Texture2DImpl, 256> textures_2d;
+	StaticMaskedBlockList<ShaderImpl, 256> shaders;
+	StaticMaskedBlockList<VertexBufferImpl, 256> vertex_buffers;
+	StaticMaskedBlockList<IndexBufferImpl, 256> index_buffers;
+	StaticMaskedBlockList<RenderTargetImpl, 256> render_targets;
+	StaticMaskedBlockList<ShaderConstantsImpl, 256> shader_constants;
+	StaticMaskedBlockList<Texture2DImpl, 256> textures_2d;
 	LinearSet<RenderTargetImpl *> render_targets_resized_with_window;
 	StaticHashMap<Span<ElementType>, InputLayout, 256> input_layouts;
 };
